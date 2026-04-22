@@ -87,6 +87,18 @@ After first deploy completes:
 
 > After this, every `git push` to `main` automatically deploys the frontend. **No workflow needed for Pages** — Cloudflare handles it natively.
 
+### SEO files (run when pages change)
+
+Keep `sitemap.xml` current whenever you add/remove/rename `.html` pages:
+
+```bash
+cd "/Users/kirinchang/Library/CloudStorage/GoogleDrive-cc9570@nyu.edu/My Drive/Projects/citereview"
+node scripts/generate-sitemap.mjs
+```
+
+Then commit and push `sitemap.xml`.
+`robots.txt` already points Google to `https://cite.review/sitemap.xml`.
+
 ---
 
 ## Step 4 — Deploy the Worker (first time)
