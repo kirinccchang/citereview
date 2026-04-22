@@ -11,13 +11,14 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ZONE_ID_CITE_REVIEW != '' && secrets.CLOUDFLARE_ZONE_ID_CITEREVIEW_COM != '' }}
-    defaults:
-      run:
-        working-directory: infra/terraform
+    outputs:
+      ready: ${{ steps.precheck.outputs.ready }}
 
     env:
       TF_IN_AUTOMATION: true
@@ -26,30 +27,58 @@ jobs:
       TF_VAR_redirect_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID_CITEREVIEW_COM }}
 
     steps:
+      - name: Check Cloudflare secrets
+        id: precheck
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID_CITE_REVIEW: ${{ secrets.CLOUDFLARE_ZONE_ID_CITE_REVIEW }}
+          CLOUDFLARE_ZONE_ID_CITEREVIEW_COM: ${{ secrets.CLOUDFLARE_ZONE_ID_CITEREVIEW_COM }}
+        run: |
+          if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ZONE_ID_CITE_REVIEW" && -n "$CLOUDFLARE_ZONE_ID_CITEREVIEW_COM" ]]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.precheck.outputs.ready == 'true'
         uses: actions/checkout@v4
 
+      - name: Skip Terraform (missing secrets)
+        if: steps.precheck.outputs.ready != 'true'
+        run: echo "Skipping Terraform. Set CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID_CITE_REVIEW, and CLOUDFLARE_ZONE_ID_CITEREVIEW_COM in GitHub Actions secrets."
+
       - name: Setup Terraform
+        if: steps.precheck.outputs.ready == 'true'
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
 
       - name: Terraform Init
+        if: steps.precheck.outputs.ready == 'true'
+        working-directory: infra/terraform
         run: terraform init
 
       - name: Terraform Validate
+        if: steps.precheck.outputs.ready == 'true'
+        working-directory: infra/terraform
         run: terraform validate
 
       - name: Terraform Plan
+        if: steps.precheck.outputs.ready == 'true'
+        working-directory: infra/terraform
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main'
+        if: steps.precheck.outputs.ready == 'true' && github.ref == 'refs/heads/main'
+        working-directory: infra/terraform
         run: terraform apply -input=false -auto-approve tfplan
 
   verify-redirects:
     needs: terraform
     runs-on: ubuntu-latest
+    if: needs.terraform.outputs.ready == 'true'
     steps:
       - name: Verify citereview.com redirects to cite.review
         run: |
