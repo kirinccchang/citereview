@@ -10,8 +10,12 @@ body {
   transition: background 0.2s, color 0.2s;
 }
 
+:root {
+  --shell-max-width: min(1320px, calc(100vw - 64px));
+}
+
 .container {
-  max-width: min(1320px, calc(100vw - 64px));
+  max-width: var(--shell-max-width);
   margin: 0 auto;
   padding: 0 32px;
 }
@@ -33,7 +37,7 @@ body {
   font-family: var(--font-sans);
 }
 #lrt-nav-inner {
-  max-width: min(1440px, calc(100vw - 64px));
+  max-width: var(--shell-max-width);
   margin: 0 auto;
   padding: 0 32px;
   height: 100%;
@@ -554,8 +558,14 @@ body.dark .settings-cl-status.invalid {
   #lrt-nav-right {
     gap: 8px;
   }
+  #lrt-nav-inner,
   .container,
   .footer {
+    max-width: calc(100vw - 20px);
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .author-section .container {
     padding-left: 20px;
     padding-right: 20px;
   }
