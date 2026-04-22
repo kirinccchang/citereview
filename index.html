@@ -2185,16 +2185,16 @@
         <input type="file" multiple accept=".docx,.pdf,.txt,.text,.md,.markdown,.html,.htm" x-ref="fileInput" @change="onFileInput($event)">
       </div>
       <div class="ingest-actions">
-        <button type="button" class="btn-inline" @click="$refs.fileInput.click()">Choose files</button>
-        <button type="button" class="btn-inline" @click="showTextImport = !showTextImport" x-text="showTextImport ? 'Hide pasted text' : 'Paste text / Markdown / HTML'"></button>
+        <button type="button" class="btn-inline" @click="$refs.fileInput.click()">Upload files</button>
+        <button type="button" class="btn-inline" @click="showTextImport = !showTextImport" x-text="showTextImport ? 'Hide text box' : 'Paste text'"></button>
         <button type="button" @click="loadDemo()" class="demo-btn">
-          <span class="demo-kicker">No document handy?</span>
-          <span>Try the <em>Mata v. Avianca</em> demo brief</span>
-          <span class="demo-tag">AI-hallucinated citations</span>
+          <span class="demo-kicker">No file yet?</span>
+          <span><em>Mata v. Avianca</em> demo</span>
+          <span class="demo-tag">AI citation demo</span>
         </button>
-        <a href="./Mata-v-Avianca-Court-Filing.pdf" target="_blank" rel="noopener" title="View original filing (Document 21)" class="demo-link">↗ Mata v. Avianca — original filing PDF</a>
+        <a href="./Mata-v-Avianca-Court-Filing.pdf" target="_blank" rel="noopener" title="View original filing (Document 21)" class="demo-link">↗ Original Mata v. Avianca filing</a>
       </div>
-      <p class="ingest-note">DOCX is usually cleaner than PDF. TXT, Markdown, and HTML also work. You can queue multiple files. Step 2 still runs one file at a time.</p>
+      <p class="ingest-note">DOCX usually parses best. TXT, Markdown, and HTML also work.</p>
 
       <div class="text-import-panel" x-show="showTextImport">
         <div class="text-import-grid">
@@ -2210,10 +2210,10 @@
       </div>
 
       <div class="ocr-row">
-        <span class="ocr-title">If the PDF is scanned (not text-selectable):</span>
+        <span class="ocr-title">For scanned PDFs:</span>
         <div class="ocr-options">
-          <label class="ocr-option" :class="{active: ocrEngine==='tesseract'}"><input type="radio" x-model="ocrEngine" value="tesseract"> <span>Read in browser (free — accurate for most clean scans)</span></label>
-          <label class="ocr-option" :class="{active: ocrEngine==='ai'}"><input type="radio" x-model="ocrEngine" value="ai"> <span>Use AI (better for blurry or unclear scans — billed to your own API key, ~$0.01–0.05 per page)</span></label>
+          <label class="ocr-option" :class="{active: ocrEngine==='tesseract'}"><input type="radio" x-model="ocrEngine" value="tesseract"> <span>Read in browser (free, best for clear scans)</span></label>
+          <label class="ocr-option" :class="{active: ocrEngine==='ai'}"><input type="radio" x-model="ocrEngine" value="ai"> <span>Use AI (better for blurry scans, uses your API key)</span></label>
         </div>
       </div>
 
