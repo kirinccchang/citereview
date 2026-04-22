@@ -94,7 +94,7 @@ jobs:
             "https://www.citereview.com/test-path?a=1" \
             "https://www.cite.review/test-path?a=1"; do
             echo "Testing: $url"
-            headers=$(curl -sSI "$url")
+            headers=$(curl -sSI "$url" | tr -d '\r')
             echo "$headers"
             echo "$headers" | grep -Eiq '^HTTP/.* 301'
             echo "$headers" | grep -Eiq '^location: https://cite\.review/test-path\?a=1$'
