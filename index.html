@@ -2133,15 +2133,15 @@
       <div class="api-inline-card">
         <div class="api-inline-top">
           <div>
-            <div class="api-inline-kicker">CourtListener required for verification</div>
-            <div class="api-inline-title">You can upload and inspect citations now, but verification stays locked until you add a CourtListener API token.</div>
+            <div class="api-inline-kicker">Add CourtListener token to verify</div>
+            <div class="api-inline-title">You can upload files now. To run verification, add your CourtListener API token.</div>
           </div>
           <button class="btn-inline primary" @click="window.dispatchEvent(new CustomEvent('lrt:open-settings'))">Open Settings</button>
         </div>
-        <div class="api-inline-copy">Verification uses CourtListener directly from your browser. Your token stays in localStorage and is never routed through a cite.review server.</div>
+        <div class="api-inline-copy">Your token stays in your browser localStorage. It is not sent through cite.review servers.</div>
         <div class="api-inline-actions">
-          <a class="api-inline-link" href="./api-setup.html">Open API setup guide</a>
-          <a class="api-inline-link" href="https://www.courtlistener.com/profile/api/" target="_blank" rel="noopener">Generate CourtListener token</a>
+          <a class="api-inline-link" href="./api-setup.html">Open setup guide</a>
+          <a class="api-inline-link" href="https://www.courtlistener.com/profile/api/" target="_blank" rel="noopener">Get free token</a>
         </div>
       </div>
     </template>
@@ -2194,7 +2194,7 @@
         </button>
         <a href="./Mata-v-Avianca-Court-Filing.pdf" target="_blank" rel="noopener" title="View original filing (Document 21)" class="demo-link">↗ Mata v. Avianca — original filing PDF</a>
       </div>
-      <p class="ingest-note">DOCX usually parses more cleanly than PDF. Markdown, TXT, and HTML are now supported as text-first sources. One queue can hold multiple files, but Step 2 still runs document-by-document.</p>
+      <p class="ingest-note">DOCX is usually cleaner than PDF. TXT, Markdown, and HTML also work. You can queue multiple files. Step 2 still runs one file at a time.</p>
 
       <div class="text-import-panel" x-show="showTextImport">
         <div class="text-import-grid">

@@ -211,22 +211,6 @@ cite.review is one tool in the [lawreview.tools](https://lawreview.tools/) ecosy
 
 ---
 
-## Deployment
-
-See [DEPLOY.md](DEPLOY.md) for the complete step-by-step guide to going live on Cloudflare Pages + Worker.
-
-**Architecture:** Cloudflare Pages (static frontend) + Cloudflare Worker (API proxy for CourtListener, LII, GovInfo, OCR). No build step — deploy the repo root as-is.
-
-**Domains:** `cite.review` (primary) · `citereview.com` (301 redirect → `cite.review`)
-
----
-
-## Local development
-
-Open `index.html` directly in a browser for frontend-only work. The Worker endpoints (`/api/proxy/*`) won't be available locally — to test those, deploy to Cloudflare or use `wrangler dev`.
-
----
-
 ## Contact
 
 - Bug reports / features: [github.com/kirinccchang/citereview/issues](https://github.com/kirinccchang/citereview/issues)
