@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cite.review FAQ — Frequently Asked Questions</title>
+<meta name="description" content="Frequently asked questions about cite.review: how it works, why it exists, who built it, whether it's safe to use, and why it's completely free.">
+<link rel="canonical" href="https://cite.review/faq.html">
+<!-- Favicon: § symbol, white on black -->
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://cite.review/faq.html">
+<meta property="og:site_name" content="cite.review">
+<meta property="og:title" content="cite.review FAQ — Frequently Asked Questions">
+<meta property="og:description" content="How does cite.review work? Is it safe? Does it cost anything? Why was it built? All the answers.">
+<meta property="og:image" content="https://cite.review/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="cite.review — Citation Verification for Lawyers">
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="cite.review FAQ">
+<meta name="twitter:description" content="How does cite.review work? Is it safe? Does it cost anything?">
+<meta name="twitter:image" content="https://cite.review/og-image.png">
+<!-- Structured data: FAQ -->
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Why does this tool exist?","acceptedAnswer":{"@type":"Answer","text":"Lawyers were sanctioned in Mata v. Avianca for filing AI-generated citations to cases that did not exist. In April 2026, Sullivan & Cromwell also apologized to a federal bankruptcy court for AI-hallucinated citations. Kirin Chang's forthcoming article in Georgetown Law Journal (Online) argues that using known-risk AI citations without verification can be reckless misrepresentation. cite.review is the practical, open-source tool response to reduce that risk."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. cite.review has no business model and no plans to build one. The real cost includes development time, AI token spend during iteration, and ongoing domain/infrastructure expenses, currently absorbed by Kirin Chang to keep the tool free. Institutional sponsorship or collaboration remains welcome. The only direct usage cost to users is optional AI provider fees for Step 2, paid to that provider, not to cite.review."}},{"@type":"Question","name":"Do you see my API keys or documents?","acceptedAnswer":{"@type":"Answer","text":"No. Your keys are stored only in your browser's localStorage and are never transmitted to cite.review's servers. AI provider calls go directly from your browser to the AI company. The source code is public and auditable."}},{"@type":"Question","name":"What is an AI hallucination?","acceptedAnswer":{"@type":"Answer","text":"An AI hallucination is when an AI generates information that sounds plausible and is stated confidently, but is factually wrong or entirely fabricated. In legal work, this includes inventing case names, citation formats, courts, dates, and even the substance of a case's holding."}},{"@type":"Question","name":"Does it work for non-U.S. jurisdictions?","acceptedAnswer":{"@type":"Answer","text":"Document parsing can still extract text from non-U.S. documents if the file is readable. But citation verification currently focuses on U.S. materials only, including U.S. case law through CourtListener and U.S. statutes and federal materials through Cornell LII and GovInfo."}},{"@type":"Question","name":"What file formats are supported right now?","acceptedAnswer":{"@type":"Answer","text":"cite.review supports .docx and .pdf file uploads, plus .txt, .md (Markdown), and .html as text-first sources. You can also paste plain text directly."}},{"@type":"Question","name":"What about journal articles, Restatements, and Westlaw or Lexis citations?","acceptedAnswer":{"@type":"Answer","text":"cite.review recognizes law review and journal citations, Restatement citations, and Westlaw or Lexis citation strings. For each, it provides pre-filled Google Scholar or Westlaw search links so you can verify them manually with one click. It resolves journal reporter abbreviations to full journal names, links Restatement citations to pre-filled Westlaw secondary-source searches, and generates Westlaw and Google Scholar query links from citation text in your memo. Content verification remains a manual step — cite.review handles the search construction."}},{"@type":"Question","name":"Attorney-Client Privilege, LLM APIs, and United States v. Heppner","acceptedAnswer":{"@type":"Answer","text":"United States v. Heppner rejected privilege claims around consumer AI chats. cite.review uses a narrower workflow: Step 1 sends citation checks to legal databases, while Step 2 sends citation-adjacent memo excerpts and opinion text directly from your browser to your chosen AI provider. That architecture supports a stronger confidentiality argument than public chatbot use, but privilege remains fact-specific and depends on provider terms, firm policy, and jurisdiction."}}]}
+</script>
+<link rel="stylesheet" href="./shared-shell.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f5f4f0;
+    --bg-card: #ffffff;
+    --text: #111111;
+    --text-muted: #3d3d3d;
+    --text-subtle: #888888;
+    --border: #d0cec9;
+    --surface: #ffffff;
+    --surface2: #f5f4f0;
+    --text2: #3d3d3d;
+    --text-faint: #888888;
+    --accent: #111111;
+    --ok-bg: #eef8ef;
+    --ok-text: #1f6a38;
+    --warn-bg: #fff6ea;
+    --warn-text: #8f4f16;
+    --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --radius: 8px;
+  }
+  [data-theme="dark"] {
+    --bg: #111111;
+    --bg-alt: #1a1a1a;
+    --bg-card: #1e1e1e;
+    --text: #eeeeee;
+    --text-muted: #aaaaaa;
+    --text-subtle: #777777;
+    --border: #333333;
+    --surface: #1e1e1e;
+    --surface2: #1a1a1a;
+    --text2: #aaaaaa;
+    --text-faint: #777777;
+    --accent: #eeeeee;
+    --ok-bg: #12301f;
+    --ok-text: #9ae6b4;
+    --warn-bg: #2a1f14;
+    --warn-text: #f7c88f;
+  }
+  html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.6;
+    transition: background 0.2s, color 0.2s;
+  }
+  a { color: inherit; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .faq-container { max-width: 1040px; margin: 0 auto; }
+  .page-main { padding: 64px 0 120px; }
+
+  /* Hero */
+  .hero { margin-bottom: 0; }
+  .hero-kicker-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .kicker {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin-bottom: 0;
+    font-family: var(--font-sans);
+  }
+  .kicker.byline-kicker {
+    letter-spacing: 0.06em;
+    text-transform: none;
+    font-weight: 600;
+  }
+  .kicker.byline-kicker a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .kicker.byline-kicker a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .hero h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 600;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    margin-bottom: 0;
+    color: var(--text);
+  }
+  .hero p {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 760px;
+    margin-top: 18px;
+    margin-bottom: 18px;
+    line-height: 1.65;
+  }
+  .trust-signals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 0;
+    align-items: center;
+    font-size: 12.5px;
+    color: var(--text-subtle);
+    margin-bottom: 18px;
+  }
+  .tsep { margin: 0 8px; }
+  .hero-links { font-size: 13.5px; color: var(--text-subtle); }
+  .hero-links a { color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; }
+  .hero-links a:hover { color: var(--text); }
+  .faq-toolbar {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .faq-toolbar-btn {
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .faq-toolbar-btn:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+  .back-to-top {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 40;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 12px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  }
+  .back-to-top:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+  .back-to-top.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+  }
+
+  /* Divider */
+  .section-divider { margin: 40px 0; }
+
+  /* FAQ items */
+  .faq-section { margin-bottom: 48px; }
+  .faq-section-title {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .faq-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    background: var(--bg-card);
+    width: 100%;
+    min-width: 0;
+  }
+  .faq-item summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 18px 20px;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    user-select: none;
+    width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: '+';
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--text-subtle);
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .faq-item[open] summary::after {
+    transform: rotate(45deg);
+  }
+  .faq-item summary:hover { background: var(--surface2); border-radius: var(--radius); }
+  .faq-body {
+    padding: 0 20px 20px;
+    font-size: 15.5px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+  }
+  .faq-body p { margin-bottom: 12px; }
+  .faq-body p:last-child { margin-bottom: 0; }
+  .faq-body ul, .faq-body ol { margin: 8px 0 12px 20px; }
+  .faq-body li { margin-bottom: 6px; }
+  .faq-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .faq-body code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .faq-body strong { color: var(--text); }
+
+  /* Note box */
+  .note-box {
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 32px;
+  }
+  .note-box.ok { background: var(--ok-bg); color: var(--ok-text); }
+  .note-box.warn { background: var(--warn-bg); color: var(--warn-text); }
+
+  /* Shared shell overrides */
+  .author-section, .footer { font-family: var(--font-sans); }
+
+  @media (max-width: 600px) {
+    .page-main { padding: 40px 0 80px; }
+    .hero-kicker-row { gap: 6px; }
+  }
+
+  @media (max-width: 420px) {
+    .faq-item summary {
+      padding: 16px 14px;
+      font-size: 14px;
+      line-height: 1.45;
+      gap: 8px;
+    }
+    .faq-body {
+      padding: 0 14px 16px;
+      font-size: 14.5px;
+      line-height: 1.65;
+    }
+  }
+</style>
+</head>
+<body>
+<nav id="lrt-nav" aria-label="lawreview.tools"></nav>
+
+<main class="page-main">
+  <div class="container faq-container">
+
+    <section class="hero">
+      <div class="hero-kicker-row">
+        <span class="kicker">cite.review · FAQ</span>
+        <span class="kicker byline-kicker"><a href="https://kirinchang.com/" target="_blank" rel="noopener">BY KIRIN CHANG</a></span>
+      </div>
+      <h1>Frequently Asked Questions</h1>
+      <p>How cite.review works, why it exists, and why it's free. If your question isn't here, <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open an issue on GitHub</a>.</p>
+      <div class="trust-signals">
+        <span>Free · no paywall</span><span class="tsep">·</span>
+        <span>Open source</span><span class="tsep">·</span>
+        <span>No server-side key storage</span>
+      </div>
+      <p class="hero-links">
+        <a href="./index.html">Open cite.review</a> ·
+        <a href="./api-setup.html">API Setup Guide</a> ·
+        <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">GitHub</a>
+      </p>
+      <div class="faq-toolbar" aria-label="FAQ display controls">
+        <button type="button" id="faq-toggle-all" class="faq-toolbar-btn">Expand all answers</button>
+      </div>
+    </section>
+
+    <hr class="section-divider">
+
+    <!-- SECTION: WHY IT EXISTS -->
+    <section class="faq-section">
+      <p class="faq-section-title">Background</p>
+
+      <details class="faq-item">
+        <summary>Why does cite.review need to exist?</summary>
+        <div class="faq-body">
+          <p>In 2023, the lawyers in <em>Mata v. Avianca</em> were sanctioned after filing AI-generated citations to cases that did not exist. In April 2026, Sullivan &amp; Cromwell also apologized to a federal bankruptcy court for AI-hallucinated citations.</p>
+          <p>The core problem is simple: when a tool is already known to invent legal citations, submitting output without verification is not just carelessness. It is taking a known risk with what you represent to a court.</p>
+          <p>This is also the argument in <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6464098" target="_blank" rel="noopener"><em>Hallucinated Authority: AI Citations as Reckless Misrepresentation</em>, 115 Georgetown Law Journal (Online) (forthcoming 2026)</a>, by Kirin Chang (the person who built this site).</p>
+          <p>So cite.review is not only a theoretical position. It is a practical response: a free, open-source tool that makes citation verification easier in real legal workflows. Some similar products exist, but many are paid and closed-source. This project aims to keep the core protection accessible and auditable for everyone, especially users with fewer resources.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What is an "AI hallucination"?</summary>
+        <div class="faq-body">
+          <p>An AI hallucination is when an AI model generates information that sounds plausible and is stated with apparent confidence, but is factually wrong or entirely invented.</p>
+          <p>In legal work, this shows up as:</p>
+          <ul>
+            <li>Case names that look real but don't exist in any database</li>
+            <li>Real case names with wrong reporters, page numbers, courts, or dates</li>
+            <li>Real cases cited for propositions they don't actually stand for</li>
+            <li>Quotations from opinions that were never written</li>
+          </ul>
+          <p>The last category — real cases misrepresented — is particularly dangerous, because the case exists and survives a basic search, but the substance attributed to it is wrong. cite.review's Step 2 is designed specifically to catch this.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Who built this, and why?</summary>
+        <div class="faq-body">
+          <p>cite.review was built by <a href="https://kirinchang.com" target="_blank" rel="noopener">Kirin Chang</a>, a Research Fellow at the U.S.-Asia Law Institute at NYU School of Law and an Affiliate Research Fellow at Emory Law's AI & the Future of Work initiative, and a member of the New York and Texas Bars.</p>
+          <p>cite.review is part of the broader <a href="https://lawreview.tools/" target="_blank" rel="noopener">lawreview.tools</a> ecosystem, which focuses on reducing friction in law review and legal-academic writing workflows. Some tools in that suite are also directly useful in practice settings. For example, <a href="https://lawreview.tools/docx-redline-name-cleaner/" target="_blank" rel="noopener">docx-redline-name-cleaner</a> is often practical for law firm redline cleanup. If any of that sounds useful, you are very welcome to explore the full toolkit.</p>
+          <p>The tool is open source so other researchers and practitioners can audit it, adapt it, and suggest improvements.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- SECTION: HOW IT WORKS -->
+    <section class="faq-section">
+      <p class="faq-section-title">How it works</p>
+
+      <details class="faq-item">
+        <summary>How does cite.review verify a citation?</summary>
+        <div class="faq-body">
+          <p>cite.review runs each citation through Step 1: cross-referencing against three authoritative public databases:</p>
+          <ul>
+            <li><strong><a href="https://www.courtlistener.com/" target="_blank" rel="noopener">CourtListener</a></strong> (Free Law Project) — federal and state case law. cite.review checks whether the case exists in their index, whether the case name matches, and whether the reporter, volume, and page are consistent.</li>
+            <li><strong><a href="https://www.law.cornell.edu/" target="_blank" rel="noopener">Cornell LII</a></strong> — U.S. Code and federal regulations.</li>
+            <li><strong><a href="https://www.govinfo.gov/" target="_blank" rel="noopener">GovInfo</a></strong> — official U.S. government publications (Public Laws, Federal Register, CFR, etc.).</li>
+          </ul>
+          <p>A citation is marked <strong>Verified</strong> when it is found and all key fields match. It is marked <strong>Warning</strong> when something is found but some fields don't match. It is marked <strong>Not Found</strong> when no matching record can be located.</p>
+          <p>Step 2 is optional: for verified cases, cite.review retrieves the actual opinion text and asks your chosen AI provider whether the case supports the proposition in your memo. This check runs from your browser directly to the AI company — cite.review is not in the middle.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What if a case isn't in CourtListener?</summary>
+        <div class="faq-body">
+          <p>CourtListener's coverage is very broad — it indexes federal courts going back to the founding era, and most major state courts. However, there are gaps:</p>
+          <ul>
+            <li>Very recent decisions (published within the past few days) may not yet be indexed</li>
+            <li>Some state trial court decisions are not in the database</li>
+            <li>Non-U.S. jurisdictions are not covered</li>
+          </ul>
+          <p>If a case comes back <strong>Not Found</strong>, it does not necessarily mean the citation is fabricated — it may just mean it's outside CourtListener's coverage. You should independently verify those citations through Westlaw, Lexis, or the court's official website.</p>
+          <p>A <strong>Verified</strong> result means the citation appeared in the database with matching fields. It is a strong signal, but it does not substitute for independent professional judgment.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Does cite.review work with statutes and regulations, not just cases?</summary>
+        <div class="faq-body">
+          <p>Yes — but with an important caveat. cite.review verifies that a cited provision <em>exists</em> (e.g., that 42 U.S.C. § 1983 is a real provision at that location), not that the statutory text actually says what you claim it says.</p>
+          <p>For statute and regulatory citations, cite.review uses Cornell LII for U.S. Code and Code of Federal Regulations citations, and GovInfo for Public Laws, the Federal Register, and other official government documents. The check confirms the referenced provision exists at the location the citation points to.</p>
+          <p>It does <strong>not</strong> read the statutory text or evaluate whether the provision supports the proposition in your document. For that, you still need to read the statute manually. cite.review catches fabricated citation strings — like citing a code section that does not exist — but it does not catch a real provision cited for something it does not actually say. That remains a human review step.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Does it work for non-U.S. jurisdictions?</summary>
+        <div class="faq-body">
+          <p>Document parsing can still extract text from non-U.S. documents if the file is readable. But citation verification currently focuses on U.S. materials only.</p>
+          <p>Right now, cite.review verifies U.S. case law through CourtListener and U.S. statutes and federal materials through Cornell LII and GovInfo. It should not be treated as a general citation verifier for non-U.S. jurisdictions.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What about journal articles, Restatements, and Westlaw or Lexis citations?</summary>
+        <div class="faq-body">
+          <p>cite.review recognizes these citation types and provides pre-filled search links so you can verify them manually with one click — no retyping required. It cannot automatically verify their content.</p>
+          <ul>
+            <li><strong>Law review and journal articles</strong> — cite.review parses the Bluebook reporter abbreviation and resolves it to the full journal name (e.g., <em>57 SUFFOLK U. L. REV. 345</em> → Suffolk University Law Review). Each citation links directly to a pre-filled <a href="https://scholar.google.com/" target="_blank" rel="noopener">Google Scholar</a> query for the article so you can locate the source without typing.</li>
+            <li><strong>Restatement citations</strong> — detected automatically (e.g., <em>Restatement (Second) of Torts § 402A</em>) and linked to a pre-filled <a href="https://1.next.westlaw.com/" target="_blank" rel="noopener">Westlaw</a> secondary-sources search. You follow the link and confirm the section number.</li>
+            <li><strong>Westlaw or Lexis citations in your memo</strong> — cite.review tries to match these against CourtListener. If a match is found, it provides CourtListener, Westlaw, and Google Scholar links. If not, it still generates a pre-filled Westlaw and Google Scholar search link from the citation text so you can verify with one click.</li>
+          </ul>
+          <p>For all of these, the verification is a quick manual step — click the link, confirm the source exists and says what you say it says. cite.review handles the search construction; the substantive review is yours.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>What file formats are supported right now?</summary>
+        <div class="faq-body">
+          <p>cite.review supports <strong>.docx</strong> and <strong>.pdf</strong> file uploads, plus <strong>.txt</strong>, <strong>.md</strong> (Markdown), and <strong>.html</strong> as text-first sources. You can also paste plain text directly.</p>
+          <p>DOCX usually gives the best results because the text structure is cleanest. PDF works well when it already contains selectable text. Scanned PDFs are slower and depend on OCR quality. TXT, Markdown, and HTML are processed locally with no OCR needed.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Can I upload multiple files at once?</summary>
+        <div class="faq-body">
+          <p>Yes. The queue panel supports multiple files at once. Each file gets its own card with a per-file progress bar and Verify button. You can run files individually or click <strong>Run All Files</strong> to verify the whole queue in sequence.</p>
+          <p>When you are done, <strong>Export ZIP</strong> downloads a single archive containing an HTML and CSV report for each file plus a combined master summary.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>My formatting looks wrong, or the document did not parse cleanly.</summary>
+        <div class="faq-body">
+          <p>If you have both versions, upload the original DOCX rather than the PDF. DOCX generally preserves structure better and produces cleaner citation extraction.</p>
+          <p>Formatting issues usually come from PDFs, especially scanned PDFs, image-based exports, or documents flattened by e-filing systems. If the parse looks noisy, switch OCR mode for scanned PDFs or go back to the original word-processing file.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- SECTION: SECURITY & PRIVACY -->
+    <section class="faq-section">
+      <p class="faq-section-title">Security and privacy</p>
+
+      <details class="faq-item" open>
+        <summary>Do you see my API keys?</summary>
+        <div class="faq-body">
+          <p><strong>No.</strong> When you enter an API key in cite.review, it is saved in your browser's <code>localStorage</code> — the same mechanism websites use to remember your preferences and settings. Your browser does not send this to cite.review's servers automatically.</p>
+          <p>When you run Step 2 (memo support check), your AI provider key is used by your browser to make a request directly to the AI company's API. cite.review's server is not involved in that call.</p>
+          <p>The only information that passes through cite.review's proxy server is the content of your CourtListener database queries — not your document text, not your AI keys.</p>
+          <p>You can verify this by reading the source code: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Does my document get uploaded to a server?</summary>
+        <div class="faq-body">
+          <p>Your document is processed entirely in your browser. When you upload a DOCX, PDF, TXT, Markdown, or HTML file, it is read by JavaScript running locally on your machine — no upload occurs.</p>
+          <p>The only data that leaves your browser are the individual citation strings sent to the legal databases for verification (CourtListener, Cornell LII, GovInfo). These are plain citation references — not your document's arguments, facts, or any privileged content.</p>
+          <p>If you use an AI provider for Step 2, the opinion text retrieved from CourtListener and the relevant excerpt from your memo are sent to your chosen AI provider according to that provider's privacy policy. cite.review does not receive or store this data.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Is it safe to use for confidential client documents?</summary>
+        <div class="faq-body">
+          <p>Step 1 (database verification) does not transmit the contents of your document — only citation strings like "556 U.S. 662." This is unlikely to raise privilege concerns.</p>
+          <p>Step 2 (AI memo support check) does send the relevant excerpt from your memo — along with the opinion text — to your AI provider. Whether this is appropriate for confidential client work depends on your firm's policies and the privacy terms of the AI provider you choose. Review those before using Step 2 with client documents.</p>
+          <p>If you use a local AI model (Ollama / LM Studio), Step 2 never leaves your machine at all.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Attorney-Client Privilege, LLM APIs, and United States v. Heppner</summary>
+        <div class="faq-body">
+          <p><em>United States v. Heppner</em> is the SDNY case where the court rejected privilege/work-product protection for a defendant's Claude chats. The opinion focused on consumer-platform usage and confidentiality expectations under those terms.</p>
+          <p>cite.review's architecture is narrower: Step 1 sends citation lookups to legal databases, and Step 2 sends only citation-adjacent memo excerpts plus opinion text from your browser directly to your selected AI provider. cite.review's worker does not proxy your AI prompts or store your AI keys.</p>
+          <p>Our view is therefore structural, not categorical: this setup is easier to characterize as a controlled legal-tech workflow than public chatbot use, but privilege is still fact-specific and depends on provider terms, firm policy, and jurisdiction. For the most conservative path, use Step 1 only or a local model for Step 2.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>How do I verify that the code does what you say it does?</summary>
+        <div class="faq-body">
+          <p>The full source code is on GitHub: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>.</p>
+          <p>The frontend is a single HTML file — you can open it in your browser's DevTools and inspect every network request it makes. The backend worker code is in <code>worker/index.js</code>.</p>
+          <p>If you find something that doesn't match what's described here, please <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open an issue</a>.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- SECTION: COST -->
+    <section class="faq-section">
+      <p class="faq-section-title">Cost</p>
+
+      <details class="faq-item" open>
+        <summary>Does cite.review cost anything?</summary>
+        <div class="faq-body">
+          <p><strong>cite.review itself is currently free. There is no subscription, no trial period, and no current plan to charge users.</strong></p>
+          <p>The legal databases cite.review uses — CourtListener, Cornell LII, and GovInfo — are all free public services. A CourtListener account is free to create and provides a generous API rate limit for normal legal work.</p>
+          <p>The only costs you might incur are:</p>
+          <ul>
+            <li>Your AI provider's API fee, if you use Step 2. This is charged by the AI company, not by cite.review. A typical support-check analysis costs a fraction of a cent per citation.</li>
+          </ul>
+          <p>If you use a local AI model, even that cost is zero.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Will it stay free?</summary>
+        <div class="faq-body">
+          <p>Yes. cite.review has no business model and no plans to build one. It grew out of genuine frustration with a real problem in legal practice — not a product searching for a market.</p>
+          <p>The real cost is significant: development time, repeated model testing, AI token spend during iteration, and ongoing domain/infrastructure expenses. <a href="https://kirinchang.com" target="_blank" rel="noopener">Kirin</a> has absorbed all of that personally to keep the tool free and available.</p>
+          <p>If any law school library, court, firm, nonprofit, or other institution wants to sponsor this work or collaborate on the project, that support is very welcome.</p>
+          <p>The source code is licensed under AGPL-3.0, which requires any public network deployment of a modified version to also release that version as open source. This is an intentional choice to keep the tool in the commons and prevent a scenario where someone takes the code, adds a paywall, and competes with the free original.</p>
+        </div>
+      </details>
+    </section>
+
+    <!-- SECTION: GET INVOLVED -->
+    <section class="faq-section">
+      <p class="faq-section-title">Get involved</p>
+
+      <details class="faq-item">
+        <summary>How can I report a bug or suggest a feature?</summary>
+        <div class="faq-body">
+          <p>Open an issue on GitHub: <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">github.com/kirinccchang/citereview/issues</a>.</p>
+          <p>Useful things to include in a bug report: what citation you were verifying, what result you expected, and what result you got. If the issue is a citation that should have been verified but wasn't, include the full citation text.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Can I contribute code?</summary>
+        <div class="faq-body">
+          <p>Yes. Pull requests are welcome. The codebase is a straightforward Alpine.js + vanilla HTML/CSS/JS project with a Cloudflare Worker backend — no build step required for the frontend.</p>
+          <p>Before opening a large PR, it's worth opening an issue first to discuss the approach, so effort isn't wasted on something that won't be merged for design or architectural reasons.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Can institutions sponsor or collaborate with cite.review?</summary>
+        <div class="faq-body">
+          <p>Yes. Sponsorship and collaboration are welcome, including from law school libraries, courts, law firms, bar associations, and nonprofit organizations.</p>
+          <p>If you want to support maintenance, fund new features, or pilot an institutional workflow, please contact <a href="https://kirinchang.com/contact/" target="_blank" rel="noopener">Kirin Chang</a>. The goal is to keep core citation-risk protections public, auditable, and practically useful.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Is there a Chinese version?</summary>
+        <div class="faq-body">
+          <p>The application itself is in English only. The README has a <a href="https://github.com/kirinccchang/citereview/blob/main/README.zh-TW.md" target="_blank" rel="noopener">Traditional Chinese translation</a>.</p>
+          <p>If there is sufficient interest in a localized UI, that can be considered. Feel free to <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open a feature request</a>.</p>
+        </div>
+      </details>
+    </section>
+
+    <div class="note-box ok">
+      <strong>Still have a question?</strong><br>
+      <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">Open an issue on GitHub</a> — questions are welcome, not just bug reports.<br>
+      Or contact Kirin directly via <a href="https://kirinchang.com/contact/" target="_blank" rel="noopener">Contact Form</a> or <a href="https://www.linkedin.com/in/kirin-chang/" target="_blank" rel="noopener">LinkedIn</a>.
+    </div>
+
+  </div>
+</main>
+
+<section id="lrt-author" class="author-section" aria-label="Built by Kirin Chang"></section>
+
+<footer id="lrt-footer" class="footer"></footer>
+
+<button type="button" id="faq-back-to-top" class="back-to-top hidden" aria-label="Back to top">Top ↑</button>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createAuthBar, mountSharedAuthor, mountSharedFooter, mountSharedNav } from './shared-nav.js';
+import Alpine from 'https://esm.sh/alpinejs@3.14.1';
+
+function getAISettings() {
+  try { return JSON.parse(localStorage.getItem('citereview_ai') || '{}'); } catch { return {}; }
+}
+function saveAISettings(settings) {
+  localStorage.setItem('citereview_ai', JSON.stringify(settings));
+}
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+window.authBar = createAuthBar({ getAISettings, saveAISettings, showToast });
+mountSharedNav({ currentPage: 'faq' });
+mountSharedAuthor();
+mountSharedFooter();
+window.Alpine = Alpine;
+Alpine.start();
+
+const toggleAllBtn = document.getElementById('faq-toggle-all');
+const backToTopBtn = document.getElementById('faq-back-to-top');
+const faqItems = () => Array.from(document.querySelectorAll('details.faq-item'));
+
+function updateToggleLabel() {
+  const items = faqItems();
+  const allOpen = items.length > 0 && items.every(item => item.open);
+  if (toggleAllBtn) toggleAllBtn.textContent = allOpen ? 'Collapse all answers' : 'Expand all answers';
+}
+
+toggleAllBtn?.addEventListener('click', () => {
+  const items = faqItems();
+  const allOpen = items.length > 0 && items.every(item => item.open);
+  items.forEach(item => { item.open = !allOpen; });
+  updateToggleLabel();
+});
+
+faqItems().forEach(item => {
+  item.addEventListener('toggle', () => updateToggleLabel());
+});
+
+window.addEventListener('scroll', () => {
+  if (!backToTopBtn) return;
+  const show = window.scrollY > 540;
+  backToTopBtn.classList.toggle('hidden', !show);
+}, { passive: true });
+
+backToTopBtn?.addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+updateToggleLabel();
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+name: Cloudflare Domain Automation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/cloudflare-domain-automation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    env:
+      TF_IN_AUTOMATION: true
+      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      TF_VAR_primary_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID_CITE_REVIEW }}
+      TF_VAR_redirect_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID_CITEREVIEW_COM }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -input=false -auto-approve tfplan
+
+  verify-redirects:
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify citereview.com redirects to cite.review
+        run: |
+          set -euo pipefail
+          for url in \
+            "https://citereview.com/test-path?a=1" \
+            "https://www.citereview.com/test-path?a=1" \
+            "https://www.cite.review/test-path?a=1"; do
+            echo "Testing: $url"
+            headers=$(curl -sSI "$url")
+            echo "$headers"
+            echo "$headers" | grep -Eiq '^HTTP/.* 301'
+            echo "$headers" | grep -Eiq '^location: https://cite\.review/test-path\?a=1$'
+          done

@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>cite.review API Setup Guide — How to Get Your Free Keys</title>
+<meta name="description" content="Step-by-step guide to set up cite.review. Get a free CourtListener API key and optionally add one AI provider. No payment required. Takes under five minutes.">
+<link rel="canonical" href="https://cite.review/api-setup.html">
+<!-- Favicon: § symbol, white on black -->
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://cite.review/api-setup.html">
+<meta property="og:site_name" content="cite.review">
+<meta property="og:title" content="cite.review API Setup Guide — How to Get Your Free Keys">
+<meta property="og:description" content="Step-by-step guide to set up cite.review. Get a free CourtListener API key and optionally add one AI provider. No payment required.">
+<meta property="og:image" content="https://cite.review/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="cite.review — Citation Verification for Lawyers">
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="cite.review API Setup Guide">
+<meta name="twitter:description" content="Step-by-step guide to set up cite.review. Free CourtListener key required. AI optional.">
+<meta name="twitter:image" content="https://cite.review/og-image.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-alt: #f5f4f0;
+    --bg-card: #ffffff;
+    --text: #111111;
+    --text-muted: #3d3d3d;
+    --text-subtle: #888888;
+    --border: #d0cec9;
+    --surface: #ffffff;
+    --surface2: #f5f4f0;
+    --text2: #3d3d3d;
+    --text-faint: #888888;
+    --accent: #111111;
+    --ok-bg: #eef8ef;
+    --ok-text: #1f6a38;
+    --warn-bg: #fff6ea;
+    --warn-text: #8f4f16;
+    --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --radius: 8px;
+  }
+
+  [data-theme="dark"] {
+    --bg: #111111;
+    --bg-alt: #1a1a1a;
+    --bg-card: #1e1e1e;
+    --text: #eeeeee;
+    --text-muted: #aaaaaa;
+    --text-subtle: #777777;
+    --border: #333333;
+    --surface: #1e1e1e;
+    --surface2: #1a1a1a;
+    --text2: #aaaaaa;
+    --text-faint: #777777;
+    --accent: #eeeeee;
+    --ok-bg: #12301f;
+    --ok-text: #9ae6b4;
+    --warn-bg: #2a1f14;
+    --warn-text: #f7c88f;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: inherit; text-decoration: none; }
+  .page-main { padding: 64px 0 120px; }
+
+  .hero {
+    position: relative;
+    margin-bottom: 0;
+  }
+  .hero-kicker-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .hero-kicker {
+    margin-bottom: 0;
+  }
+  .hero-kicker.byline-kicker a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .hero-kicker.byline-kicker a:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .hero-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .kicker {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin-bottom: 14px;
+  }
+  .hero-kicker.byline-kicker {
+    letter-spacing: 0.06em;
+    text-transform: none;
+    font-weight: 600;
+  }
+  h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    margin-bottom: 0;
+  }
+  .hero p { color: var(--text2); font-size: 17px; max-width: 1040px; line-height: 1.72; }
+  .hero-links {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .hero-links a {
+    color: var(--text-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .trust-signals {
+    font-size: 12px;
+    color: var(--text-subtle);
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .trust-signals .tsep { margin: 0 7px; opacity: 0.35; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .card h2 {
+    font-size: 17px;
+    margin-bottom: 10px;
+  }
+  .tag {
+    display: inline-block;
+    border-radius: 100px;
+    padding: 2px 8px;
+    font-size: 11px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .required { background: #f2ecea; color: #6b3227; }
+  .optional { background: #eceef2; color: #334155; }
+
+  ol, ul { padding-left: 20px; }
+  li { margin-bottom: 6px; color: var(--text-muted); }
+  .card a, .provider a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+
+  .provider-list {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .provider {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .provider h3 { font-size: 16px; margin-bottom: 8px; }
+  .provider-select-note {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text2);
+    background: var(--surface2);
+    margin-bottom: 8px;
+  }
+  .provider-accordion {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .provider-accordion summary {
+    list-style: none;
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .provider-accordion summary::-webkit-details-marker { display: none; }
+  .provider-accordion summary .tag {
+    margin-left: 0;
+  }
+  .provider-accordion summary::after {
+    content: '+';
+    font-size: 18px;
+    color: var(--text-subtle);
+    width: 18px;
+    text-align: center;
+  }
+  .provider-accordion[open] summary::after { content: '−'; }
+  .provider-accordion .provider {
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    margin: 0;
+    padding-top: 14px;
+  }
+  .hint {
+    font-size: 13px;
+    color: var(--text-subtle);
+    margin-top: 10px;
+  }
+
+  .notes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .note {
+    border-radius: 8px;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+  }
+  .note.ok {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+  }
+  .note.warn {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+  }
+
+  @media (max-width: 640px) {
+    .card, .provider, .note { padding: 16px; }
+  }
+
+  @media (max-width: 780px) {
+    .grid, .notes { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .page-main { padding: 44px 0 84px; }
+    .hero p { font-size: 15px; }
+    .hero-kicker-row { gap: 6px; }
+  }
+</style>
+<link rel="stylesheet" href="./shared-shell.css">
+</head>
+<body>
+<nav id="lrt-nav" aria-label="lawreview.tools"></nav>
+
+<main class="page-main">
+  <div class="container">
+  <section class="hero">
+    <div class="hero-kicker-row">
+      <span class="kicker hero-kicker">Review Phase . API Onboarding</span>
+      <span class="kicker hero-kicker byline-kicker"><a href="https://kirinchang.com/" target="_blank" rel="noopener">BY KIRIN CHANG</a></span>
+    </div>
+    <div class="hero-header">
+      <h1>API Setup for cite.review</h1>
+    </div>
+    <p><strong>One key is required to make the verifier work.</strong> First, cite.review checks citations against authoritative legal sources without using AI. Then, if you choose to add one AI provider, support review compares the memo's claim with the actual opinion text and helps flag fabricated citations, misstatements, and unsupported claims.</p>
+    <div class="trust-signals">
+      <span>Browser-stored keys</span><span class="tsep">·</span>
+      <span>Pick one AI provider</span><span class="tsep">·</span>
+      <span>Same product family as PermaDrop</span>
+    </div>
+    <p class="hero-links"><a href="./index.html">Open cite.review</a> · <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">GitHub</a> · <a href="https://lawreview.tools/" target="_blank" rel="noopener">lawreview.tools</a></p>
+  </section>
+
+  <div class="section-divider"></div>
+
+  <section class="grid">
+    <article class="card">
+      <h2>CourtListener <span class="tag required">required</span></h2>
+      <ol>
+        <li>Sign in at <a href="https://www.courtlistener.com/sign-in/" target="_blank" rel="noopener">courtlistener.com</a>.</li>
+        <li>Open <strong>Settings - API</strong> and click <strong>Generate Token</strong>.</li>
+        <li>Paste the token into cite.review setup gate or Settings.</li>
+      </ol>
+      <p class="hint">Used for case verification and opinion retrieval. Free tier supports high hourly volume for normal drafting workflows.</p>
+    </article>
+
+    <article class="card">
+      <h2>Where Keys Are Stored</h2>
+      <ul>
+        <li>Keys are stored in your browser <code>localStorage</code>.</li>
+        <li>No key is saved in a cite.review account backend.</li>
+        <li>You can clear all keys anytime in your browser site data settings.</li>
+      </ul>
+      <p class="hint">If you share a machine, use a dedicated browser profile for legal work.</p>
+    </article>
+  </section>
+
+  <section class="provider-list">
+    <div class="provider-select-note"><strong>AI is optional.</strong> To keep setup simple, choose only one provider. Most users should keep the recommended default model.</div>
+
+    <details class="provider-accordion">
+      <summary><span>Anthropic Claude</span><span class="tag optional">optional</span></summary>
+      <article class="provider">
+        <ol>
+          <li>Go to <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener">platform.claude.com/settings/keys</a>.</li>
+          <li>Create a new API key.</li>
+          <li>Copy the key and paste it in Settings - AI Provider.</li>
+          <li>Recommended default: <code>claude-haiku-4-5-20251001</code>.</li>
+        </ol>
+        <p class="hint">Recommended for most users: fast, strong, and simple.</p>
+      </article>
+    </details>
+
+    <details class="provider-accordion">
+      <summary><span>OpenAI</span><span class="tag optional">optional</span></summary>
+      <article class="provider">
+        <ol>
+          <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>.</li>
+          <li>Click <strong>Create new secret key</strong>.</li>
+          <li>Copy the key and paste it in Settings - AI Provider.</li>
+          <li>Recommended default: <code>gpt-4.1-mini</code>.</li>
+        </ol>
+        <p class="hint">Simple choice for most users. Switch to a stronger model only if you want to trade speed and cost for more headroom.</p>
+      </article>
+    </details>
+
+    <details class="provider-accordion">
+      <summary><span>Google Gemini</span><span class="tag optional">optional</span></summary>
+      <article class="provider">
+        <ol>
+          <li>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">aistudio.google.com/app/apikey</a>.</li>
+          <li>Click <strong>Get API key</strong> and create a key.</li>
+          <li>Copy the key and paste it in Settings - AI Provider.</li>
+          <li>Recommended default: <code>gemini-2.5-flash</code>.</li>
+        </ol>
+        <p class="hint">Gemini 2.0 Flash is deprecated. For this tool, keep 2.5 Flash unless you specifically want the stronger 2.5 Pro model.</p>
+      </article>
+    </details>
+
+    <details class="provider-accordion">
+      <summary><span>Kimi (Moonshot)</span><span class="tag optional">optional</span></summary>
+      <article class="provider">
+        <ol>
+          <li>Go to <a href="https://platform.kimi.com/console/api-keys" target="_blank" rel="noopener">platform.kimi.com/console/api-keys</a>.</li>
+          <li>Create an API key.</li>
+          <li>Copy the key and paste it in Settings - AI Provider.</li>
+          <li>Recommended default: <code>kimi-k2.6</code>.</li>
+        </ol>
+        <p class="hint">Kimi's current platform highlights the K2 family. Keep K2.6 unless you specifically prefer K2.5.</p>
+      </article>
+    </details>
+
+    <details class="provider-accordion">
+      <summary><span>Local (Ollama / LM Studio)</span><span class="tag optional">optional</span></summary>
+      <article class="provider">
+        <div style="background:#fff3cd;border:1px solid #f0ad4e;border-radius:6px;padding:10px 14px;font-size:13px;line-height:1.55;color:#7a4f00;margin-bottom:16px">
+          <strong>⚠️ Model quality matters enormously for legal work.</strong><br>
+          Small models that fit on a standard MacBook Air (≤16 GB RAM, 3B–7B parameters) perform <em>very poorly</em> at legal citation analysis — expect frequent hallucinations and missed errors. For reliable results you need ≥32B parameters, which require high-end workstation hardware. If you don't have that hardware, use a cloud provider instead.
+        </div>
+        <p style="font-size:13.5px;font-weight:600;margin-bottom:10px">Option A — LM Studio <span style="font-weight:400;color:var(--text-subtle)">(recommended for Mac)</span></p>
+        <ol>
+          <li>Download <a href="https://lmstudio.ai" target="_blank" rel="noopener">LM Studio</a> and open it.</li>
+          <li>Click the search icon and download your model:<br>
+            <span style="font-size:12px;color:var(--text-subtle)">
+              • <strong>8 GB RAM:</strong> <code>qwen2.5-3b-instruct-mlx</code> or <code>llama-3.2-3b-instruct-mlx</code> (~2 GB)<br>
+              • <strong>16 GB RAM:</strong> <code>gemma-4-e4b-it-mlx</code> or <code>qwen3-14b-mlx</code><br>
+              Download the MLX version (Apple Silicon only — 2–3× faster than Ollama)
+            </span>
+          </li>
+          <li>In the left sidebar, click <strong>Developer</strong> → toggle <strong>Enable local server</strong> on.</li>
+          <li>Note the server address (usually <code>http://127.0.0.1:1234/v1</code>).</li>
+          <li>In cite.review Settings: set <strong>Base URL</strong> to <code>http://127.0.0.1:1234/v1</code>, leave API Key blank.</li>
+          <li>Set <strong>Model name</strong> to the exact identifier shown in LM Studio's server tab (e.g. <code>qwen2.5-3b-instruct-mlx</code>).</li>
+        </ol>
+        <p style="font-size:13.5px;font-weight:600;margin:14px 0 10px">Option B — Ollama <span style="font-weight:400;color:var(--text-subtle)">(Windows / Linux / Mac)</span></p>
+        <ol>
+          <li>Download <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> and install it.</li>
+          <li>Open Terminal and pull your model:<br>
+            <span style="font-size:12px;color:var(--text-subtle)">
+              • <strong>8 GB RAM:</strong> <code>ollama pull gemma4:e4b</code><br>
+              • <strong>16 GB RAM:</strong> <code>ollama pull qwen3:14b</code>
+            </span>
+          </li>
+          <li>Ollama starts automatically — no API key needed.</li>
+          <li>In cite.review Settings: set <strong>Base URL</strong> to <code>http://localhost:11434/v1</code>, leave API Key blank.</li>
+          <li>Set <strong>Model name</strong> to the name you pulled (e.g. <code>qwen3:14b</code>).</li>
+        </ol>
+        <p class="hint">Even with a large model, local inference is slower than cloud providers and results may vary. For production legal work, a cloud provider is more reliable.</p>
+      </article>
+    </details>
+  </section>
+
+  <section class="notes">
+    <div class="note ok">
+      <strong>Recommended baseline</strong><br>
+      CourtListener key + one cloud AI key is the simplest setup for most users.
+    </div>
+    <div class="note warn">
+      <strong>Cost note</strong><br>
+      AI memo-support analysis can incur provider charges. Citation verification via CourtListener remains separate.
+    </div>
+  </section>
+  </div>
+</main>
+
+<section id="lrt-author" class="author-section" aria-label="Built by Kirin Chang"></section>
+
+<footer id="lrt-footer" class="footer"></footer>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createAuthBar, mountSharedAuthor, mountSharedFooter, mountSharedNav } from './shared-nav.js';
+import Alpine from 'https://esm.sh/alpinejs@3.14.1';
+
+function getAISettings() {
+  try { return JSON.parse(localStorage.getItem('citereview_ai') || '{}'); }
+  catch { return {}; }
+}
+
+function saveAISettings(settings) {
+  localStorage.setItem('citereview_ai', JSON.stringify(settings));
+}
+
+function showToast(message) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3200);
+}
+
+window.authBar = createAuthBar({ getAISettings, saveAISettings, showToast });
+mountSharedNav({ currentPage: 'api' });
+mountSharedAuthor();
+mountSharedFooter();
+window.Alpine = Alpine;
+Alpine.start();
+
+const nav = document.getElementById('lrt-nav');
+function syncNav() {
+  if (!nav) return;
+  nav.classList.toggle('lrt-scrolled', window.scrollY > 6);
+}
+window.addEventListener('scroll', syncNav, { passive: true });
+syncNav();
+</script>
+</body>
+</html>

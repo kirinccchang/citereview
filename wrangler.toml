@@ -1,0 +1,18 @@
+name = "citereview-api"
+main = "worker/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# GovInfo API key — register free at https://api.govinfo.gov/docs/
+# Falls back to "DEMO_KEY" (30 req/hour) if not set.
+# Override via: wrangler secret put GOVINFO_KEY
+[vars]
+GOVINFO_KEY = "DEMO_KEY"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "1082a0c645f24ddd85f385679166b0da"
+
+[[kv_namespaces]]
+binding = "TOKENS"
+id = "1e0bb227b46f49f7ba6479a0c1eab4a9"

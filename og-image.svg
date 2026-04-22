@@ -1,0 +1,28 @@
+<!--
+  OG image for cite.review
+  Cross-platform size: 1200 x 630 (1.91:1)
+  Safe content area: keep key text inside x=120..1080, y=110..520
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="cite.review social preview">
+  <rect width="1200" height="630" fill="#111111"/>
+
+  <!-- Editorial structure with generous margins and one visual rhythm -->
+  <line x1="96" y1="92" x2="1104" y2="92" stroke="#2b2b2b" stroke-width="1"/>
+  <line x1="96" y1="552" x2="1104" y2="552" stroke="#2b2b2b" stroke-width="1"/>
+
+  <!-- Branding block -->
+  <text x="110" y="210" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="76" font-weight="600" letter-spacing="-1" fill="#f1f1f1">§</text>
+  <text x="190" y="210" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="110" font-weight="600" letter-spacing="-1.8" fill="#f1f1f1">cite.review</text>
+  <text x="190" y="258" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="34" font-weight="400" fill="#bfbfbf">Citation Verification for Lawyers</text>
+
+  <!-- Message block: compact and highly legible in small social previews -->
+  <text x="190" y="348" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="46" font-weight="500" fill="#f3f3f3">Verify citation existence.</text>
+  <text x="190" y="404" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="46" font-weight="500" fill="#f3f3f3">Check support claims with evidence.</text>
+
+  <!-- Meta line -->
+  <text x="190" y="482" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="24" font-weight="500" fill="#9a9a9a">Free  ·  Open Source  ·  No Paywall</text>
+
+  <!-- Footer line -->
+  <text x="110" y="592" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="20" fill="#666666">kirinchang.com</text>
+  <text x="1104" y="592" text-anchor="end" font-family="Baskerville, 'Times New Roman', Times, serif" font-size="20" fill="#666666">Built by Kirin Chang</text>
+</svg>
