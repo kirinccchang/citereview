@@ -130,7 +130,7 @@
     font-family: var(--font-sans);
   }
   #lrt-nav-inner {
-    max-width: min(1440px, calc(100vw - 64px));
+    max-width: min(1320px, calc(100vw - 64px));
     margin: 0 auto;
     padding: 0 32px;
     height: 100%;
@@ -2133,12 +2133,12 @@
       <div class="api-inline-card">
         <div class="api-inline-top">
           <div>
-            <div class="api-inline-kicker">Add CourtListener token to verify</div>
-            <div class="api-inline-title">You can upload files now. To run verification, add your CourtListener API token.</div>
+            <div class="api-inline-kicker">Set up to verify</div>
+            <div class="api-inline-title">Add a CourtListener API token to run verification.</div>
           </div>
           <button class="btn-inline primary" @click="window.dispatchEvent(new CustomEvent('lrt:open-settings'))">Open Settings</button>
         </div>
-        <div class="api-inline-copy">Your token stays in your browser localStorage. It is not sent through cite.review servers.</div>
+        <div class="api-inline-copy">Token stays in your browser only — never sent to our servers.</div>
         <div class="api-inline-actions">
           <a class="api-inline-link" href="./api-setup.html">Open setup guide</a>
           <a class="api-inline-link" href="https://www.courtlistener.com/profile/api/" target="_blank" rel="noopener">Get free token</a>
@@ -2212,8 +2212,8 @@
       <div class="ocr-row">
         <span class="ocr-title">For scanned PDFs:</span>
         <div class="ocr-options">
-          <label class="ocr-option" :class="{active: ocrEngine==='tesseract'}"><input type="radio" x-model="ocrEngine" value="tesseract"> <span>Read in browser (free, best for clear scans)</span></label>
-          <label class="ocr-option" :class="{active: ocrEngine==='ai'}"><input type="radio" x-model="ocrEngine" value="ai"> <span>Use AI (better for blurry scans, uses your API key)</span></label>
+          <label class="ocr-option" :class="{active: ocrEngine==='tesseract'}"><input type="radio" x-model="ocrEngine" value="tesseract"> <span>Browser (free, best for clear scans)</span></label>
+          <label class="ocr-option" :class="{active: ocrEngine==='ai'}"><input type="radio" x-model="ocrEngine" value="ai"> <span>AI OCR (better for blurry scans)</span></label>
         </div>
       </div>
 
