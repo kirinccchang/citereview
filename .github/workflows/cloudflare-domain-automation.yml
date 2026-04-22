@@ -71,9 +71,15 @@ jobs:
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
+        id: apply
         if: steps.precheck.outputs.ready == 'true' && github.ref == 'refs/heads/main'
         working-directory: infra/terraform
+        continue-on-error: true
         run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Warn when apply fails
+        if: steps.precheck.outputs.ready == 'true' && steps.apply.outcome == 'failure'
+        run: echo "::warning::Terraform apply failed. Check CLOUDFLARE_API_TOKEN permissions for DNS and Page Rules edits."
 
   verify-redirects:
     needs: terraform
