@@ -2001,15 +2001,15 @@
         <h1>cite.review</h1>
       </div>
       <p class="hero-summary">Catch citation hallucinations in 2 steps: authority, then support.</p>
-      <p class="hero-step"><strong>Step 1 (no AI):</strong> Is this case real and correctly cited?</p>
+      <p class="hero-step"><strong>Step 1:</strong> Is this case real and correctly cited?</p>
       <details class="hero-step-details">
         <summary>Details</summary>
-        <p>First confirms the case exists and that the case name, court, and citation match authoritative records. It checks case citations via CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and flags fabricated or mismatched authorities.</p>
+        <p>Checks case citations via CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and cross-checks case name, court, and citation to flag fabricated or mismatched authorities. This step uses no AI — verifying citations against authoritative databases, not asking an AI to check another AI's output.</p>
       </details>
-      <p class="hero-step" style="margin-top:8px"><strong>Step 2 (verified cases only):</strong> Does this case support my point?</p>
+      <p class="hero-step" style="margin-top:8px"><strong>Step 2:</strong> Does this case actually support my point?</p>
       <details class="hero-step-details">
         <summary>Details</summary>
-        <p>For each verified case, compares your memo context with verbatim opinion text and flags when the cited authority does not support the proposition in your draft.</p>
+        <p>For each case verified in Step 1, compares your memo context with verbatim opinion text and flags when the cited authority does not support the proposition in your draft. AI handles this step well: reading and comparing specific passages of text is a precise, bounded task — very different from generating citations from scratch.</p>
       </details>
       <div class="trust-signals">
         <span>Free</span><span class="tsep">·</span>
