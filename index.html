@@ -311,6 +311,39 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+  .hero-step {
+    margin-top: 6px;
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .hero-step strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .hero-step-details {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.62;
+  }
+  .hero-step-details summary {
+    cursor: pointer;
+    width: fit-content;
+    color: var(--text-faint);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    list-style: none;
+  }
+  .hero-step-details summary::-webkit-details-marker { display: none; }
+  .hero-step-details summary::before {
+    content: '+ ';
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .hero-step-details[open] summary::before { content: '\2212 '; }
+  .hero-step-details p { margin-top: 6px; }
   .hero-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
@@ -1622,6 +1655,9 @@
       padding: 38px 10px 72px;
     }
     .hero p { font-size: 15px; }
+    .hero-step { font-size: 15px; line-height: 1.48; }
+    .hero-step-details { font-size: 13px; line-height: 1.56; }
+    .hero-step-details summary { font-size: 11px; letter-spacing: 0.06em; }
     .citation-item { grid-template-columns: 18px 24px 1fr auto; gap: 8px; }
     .cit-actions {
       align-self: start;
@@ -1955,8 +1991,16 @@
       <div class="hero-header">
         <h1>cite.review</h1>
       </div>
-      <p><strong>Step 1 (no AI): verify citations against authoritative legal sources.</strong> cite.review checks case citations through CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and cross-checks case name, court, and citation details to catch fabricated or mismatched authorities.</p>
-      <p style="margin-top:10px"><strong>Step 2 (verified cases only): check memo support with AI.</strong> For each verified case, cite.review compares the memo context with verbatim opinion text and flags when the cited authority does not actually support the proposition in your draft.</p>
+      <p class="hero-step"><strong>Step 1 (no AI):</strong> Is this case real and correctly cited?</p>
+      <details class="hero-step-details">
+        <summary>Details</summary>
+        <p>First confirms the case exists and that the case name, court, and citation match authoritative records. It checks case citations via CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and flags fabricated or mismatched authorities.</p>
+      </details>
+      <p class="hero-step" style="margin-top:8px"><strong>Step 2 (verified cases only):</strong> Does this case support my point?</p>
+      <details class="hero-step-details">
+        <summary>Details</summary>
+        <p>For each verified case, compares your memo context with verbatim opinion text and flags when the cited authority does not support the proposition in your draft.</p>
+      </details>
       <div class="trust-signals">
         <span>Free</span><span class="tsep">·</span>
         <a href="https://kirinchang.com/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">Built at NYU Law</a><span class="tsep">·</span>
