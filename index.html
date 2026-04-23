@@ -311,10 +311,32 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
+  .hero-step-wrap {
+    margin-top: 10px;
+  }
+  .hero-step-label {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .hero-step-badge {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-faint);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    line-height: 1.5;
+  }
   .hero-step {
-    margin-top: 6px;
+    margin-top: 0;
     font-size: 17px;
-    line-height: 1.55;
+    line-height: 1.5;
   }
   .hero-summary {
     margin-top: 4px;
@@ -329,29 +351,42 @@
     font-weight: 600;
   }
   .hero-step-details {
-    margin-top: 4px;
+    margin-top: 6px;
     color: var(--text-muted);
     font-size: 14px;
     line-height: 1.62;
   }
   .hero-step-details summary {
     cursor: pointer;
-    width: fit-content;
-    color: var(--text-faint);
-    font-size: 12px;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-sans);
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    list-style: none;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    user-select: none;
+    transition: background 0.12s, color 0.12s;
+  }
+  .hero-step-details summary:hover {
+    background: var(--hover-bg);
+    color: var(--text);
   }
   .hero-step-details summary::-webkit-details-marker { display: none; }
   .hero-step-details summary::before {
-    content: '+ ';
-    font-weight: 700;
-    color: var(--text-muted);
+    content: '+';
+    font-size: 14px;
+    font-weight: 300;
+    line-height: 1;
   }
-  .hero-step-details[open] summary::before { content: '\2212 '; }
-  .hero-step-details p { margin-top: 6px; }
+  .hero-step-details[open] summary::before { content: '\2212'; }
+  .hero-step-details p { margin-top: 8px; }
   .hero-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
@@ -1664,9 +1699,10 @@
     }
     .hero p { font-size: 15px; }
     .hero-summary { font-size: 14px; line-height: 1.48; margin-bottom: 6px; }
-    .hero-step { font-size: 15px; line-height: 1.48; }
+    .hero-step { font-size: 15px; line-height: 1.45; }
+    .hero-step-badge { font-size: 9px; }
     .hero-step-details { font-size: 13px; line-height: 1.56; }
-    .hero-step-details summary { font-size: 11px; letter-spacing: 0.06em; }
+    .hero-step-details summary { font-size: 10px; letter-spacing: 0.06em; padding: 3px 9px; }
     .citation-item { grid-template-columns: 18px 24px 1fr auto; gap: 8px; }
     .cit-actions {
       align-self: start;
@@ -2001,16 +2037,26 @@
         <h1>cite.review</h1>
       </div>
       <p class="hero-summary">Catch citation hallucinations in 2 steps: authority, then support.</p>
-      <p class="hero-step"><strong>Step 1:</strong> Is this case real and correctly cited?</p>
-      <details class="hero-step-details">
-        <summary>Details</summary>
-        <p>Checks case citations via CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and cross-checks case name, court, and citation to flag fabricated or mismatched authorities. This step uses no AI — verifying citations against authoritative databases, not asking an AI to check another AI's output.</p>
-      </details>
-      <p class="hero-step" style="margin-top:8px"><strong>Step 2:</strong> Does this case actually support my point?</p>
-      <details class="hero-step-details">
-        <summary>Details</summary>
-        <p>For each case verified in Step 1, compares your memo context with verbatim opinion text and flags when the cited authority does not support the proposition in your draft. AI handles this step well: reading and comparing specific passages of text is a precise, bounded task — very different from generating citations from scratch.</p>
-      </details>
+      <div class="hero-step-wrap">
+        <div class="hero-step-label">
+          <span class="hero-step-badge">01</span>
+          <p class="hero-step"><strong>Is this case real and correctly cited?</strong></p>
+        </div>
+        <details class="hero-step-details">
+          <summary>Details</summary>
+          <p>Checks case citations via CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and cross-checks case name, court, and citation to flag fabricated or mismatched authorities. This step uses no AI: verifying citations against authoritative databases, not asking an AI to check another AI's output.</p>
+        </details>
+      </div>
+      <div class="hero-step-wrap">
+        <div class="hero-step-label">
+          <span class="hero-step-badge">02</span>
+          <p class="hero-step"><strong>Does this case actually support my point?</strong></p>
+        </div>
+        <details class="hero-step-details">
+          <summary>Details</summary>
+          <p>For each case verified in Step 1, compares your memo context with verbatim opinion text and flags when the cited authority does not support the proposition in your draft. AI handles this step well: reading and comparing specific passages of text is a precise, bounded task, very different from generating citations from scratch.</p>
+        </details>
+      </div>
       <div class="trust-signals">
         <span>Free</span><span class="tsep">·</span>
         <a href="https://kirinchang.com/" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">Built at NYU Law</a><span class="tsep">·</span>
