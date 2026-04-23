@@ -323,7 +323,7 @@
   .hero-step-badge {
     display: inline-block;
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--text-faint);
     border: 1px solid var(--border);
@@ -333,8 +333,15 @@
     flex-shrink: 0;
     line-height: 1.5;
   }
+  .hero-step-num {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
   .hero-step {
-    margin-top: 0;
+    margin-top: 4px;
     font-size: 17px;
     line-height: 1.5;
   }
@@ -363,7 +370,7 @@
     align-items: center;
     gap: 5px;
     font-family: var(--font-sans);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -1700,9 +1707,10 @@
     .hero p { font-size: 15px; }
     .hero-summary { font-size: 14px; line-height: 1.48; margin-bottom: 6px; }
     .hero-step { font-size: 15px; line-height: 1.45; }
-    .hero-step-badge { font-size: 9px; }
+    .hero-step-badge { font-size: 11px; }
+    .hero-step-num { font-size: 11px; }
     .hero-step-details { font-size: 13px; line-height: 1.56; }
-    .hero-step-details summary { font-size: 10px; letter-spacing: 0.06em; padding: 3px 9px; }
+    .hero-step-details summary { font-size: 11px; letter-spacing: 0.06em; padding: 3px 9px; }
     .citation-item { grid-template-columns: 18px 24px 1fr auto; gap: 8px; }
     .cit-actions {
       align-self: start;
@@ -2040,8 +2048,9 @@
       <div class="hero-step-wrap">
         <div class="hero-step-label">
           <span class="hero-step-badge">01</span>
-          <p class="hero-step"><strong>Is this case real and correctly cited?</strong></p>
+          <span class="hero-step-num">Step 1</span>
         </div>
+        <p class="hero-step"><strong>Is this case real and correctly cited?</strong></p>
         <details class="hero-step-details">
           <summary>Details</summary>
           <p>Checks case citations via CourtListener, validates statutes and federal materials against Cornell LII and GovInfo, and cross-checks case name, court, and citation to flag fabricated or mismatched authorities. This step uses no AI: verifying citations against authoritative databases, not asking an AI to check another AI's output.</p>
@@ -2050,8 +2059,9 @@
       <div class="hero-step-wrap">
         <div class="hero-step-label">
           <span class="hero-step-badge">02</span>
-          <p class="hero-step"><strong>Does this case actually support my point?</strong></p>
+          <span class="hero-step-num">Step 2</span>
         </div>
+        <p class="hero-step"><strong>Does this case actually support my point?</strong></p>
         <details class="hero-step-details">
           <summary>Details</summary>
           <p>For each case verified in Step 1, compares your memo context with verbatim opinion text and flags when the cited authority does not support the proposition in your draft. AI handles this step well: reading and comparing specific passages of text is a precise, bounded task, very different from generating citations from scratch.</p>
