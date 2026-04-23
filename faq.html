@@ -426,6 +426,19 @@
       </details>
 
       <details class="faq-item">
+        <summary>How accurate is the verification? Can I trust a "Verified" result?</summary>
+        <div class="faq-body">
+          <p><strong>Verified</strong> means the case was found in CourtListener's index and the case name, court, reporter, volume, and page all match. That is a strong signal the citation is real and correctly formed.</p>
+          <p>What it does not mean:</p>
+          <ul>
+            <li>The case actually supports the proposition in your memo. A real case can still be cited for something it does not say. That is what Step 2 checks.</li>
+            <li>The citation is perfect in every detail. CourtListener is very comprehensive, but it has gaps. A Verified result is reliable; it is not a substitute for reading the case.</li>
+          </ul>
+          <p>The two steps work together: Step 1 catches hallucinated citations (cases that do not exist), and Step 2 catches misused citations (real cases cited for the wrong proposition). Both matter.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
         <summary>What if a case isn't in CourtListener?</summary>
         <div class="faq-body">
           <p>CourtListener's coverage is very broad. It indexes federal courts going back to the founding era and most major state courts. There are some gaps:</p>
@@ -536,11 +549,12 @@
       </details>
 
       <details class="faq-item">
-        <summary>How do I verify that the code does what you say it does?</summary>
+        <summary>Is the source code public? What does that mean?</summary>
         <div class="faq-body">
-          <p>The full source code is on GitHub: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>.</p>
-          <p>The frontend is a single HTML file. Open it in your browser's DevTools and inspect every network request it makes. The backend worker code is in <code>worker/index.js</code>.</p>
-          <p>If you find something that doesn't match what's described here, please <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open an issue</a>.</p>
+          <p>Yes. cite.review is open source, which means the full code is publicly available for anyone to read. You do not have to take our word for how it works.</p>
+          <p>In practice, this means: if we say "your document never leaves your browser," you can open the code and confirm that is true. You are not relying on a privacy policy written by a lawyer to protect a business.</p>
+          <p>The code is on GitHub: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>. The frontend is a single HTML file. The backend worker is in <code>worker/index.js</code>.</p>
+          <p>If you do not read code, that is fine. Paste the relevant file into any AI model and ask: "Does this send my document to a server?" or "Where does this send my API key?" The AI can read it for you. If you find something that does not match what is described here, please <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open an issue</a>.</p>
         </div>
       </details>
     </section>
