@@ -145,14 +145,29 @@
     text-underline-offset: 2px;
   }
   .trust-signals {
-    font-size: 12px;
-    color: var(--text-subtle);
     margin-top: 10px;
+    padding: 0;
+    list-style: none;
     display: flex;
     align-items: center;
+    column-gap: 12px;
+    row-gap: 4px;
     flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-subtle);
   }
-  .trust-signals .tsep { margin: 0 7px; opacity: 0.35; }
+  .trust-signals li {
+    display: inline-flex;
+    align-items: center;
+  }
+  .trust-signals li + li::before {
+    content: '';
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--border);
+    margin-right: 12px;
+  }
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -285,6 +300,8 @@
     .page-main { padding: 44px 0 84px; }
     .hero p { font-size: 15px; }
     .hero-kicker-row { gap: 6px; }
+    .trust-signals { font-size: 11px; column-gap: 10px; }
+    .trust-signals li + li::before { margin-right: 10px; }
   }
 </style>
 <link rel="stylesheet" href="./shared-shell.css">
@@ -303,11 +320,11 @@
       <h1>API Setup for cite.review</h1>
     </div>
     <p><strong>One key is required to make the verifier work.</strong> First, cite.review checks citations against authoritative legal sources without using AI. Then, if you choose to add one AI provider, support review compares the memo's claim with the actual opinion text and helps flag fabricated citations, misstatements, and unsupported claims.</p>
-    <div class="trust-signals">
-      <span>Browser-stored keys</span><span class="tsep">·</span>
-      <span>Pick one AI provider</span><span class="tsep">·</span>
-      <span>Same product family as PermaDrop</span>
-    </div>
+    <ul class="trust-signals" aria-label="Setup principles">
+      <li>Browser-stored keys</li>
+      <li>Pick one AI provider</li>
+      <li>Direct browser-to-provider calls</li>
+    </ul>
     <p class="hero-links"><a href="./index.html">Open cite.review</a> · <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">GitHub</a> · <a href="https://lawreview.tools/" target="_blank" rel="noopener">lawreview.tools</a></p>
   </section>
 
