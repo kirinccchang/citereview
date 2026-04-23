@@ -25,7 +25,7 @@
 <meta name="twitter:image" content="https://cite.review/og-image.png">
 <!-- Structured data: FAQ -->
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does cite.review do, and why does it exist?","acceptedAnswer":{"@type":"Answer","text":"cite.review catches AI-hallucinated legal citations before they reach a court. It checks whether cited authorities actually exist and whether they support the propositions in your draft. In 2023, lawyers in Mata v. Avianca were sanctioned for filing AI-generated citations to nonexistent cases. In April 2026, Sullivan & Cromwell apologized to a federal bankruptcy court for the same problem. cite.review is the free, open-source response."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. cite.review has no business model and no plans to build one. The real cost includes development time, AI token spend during iteration, and ongoing domain/infrastructure expenses, currently absorbed by Kirin Chang to keep the tool free. Institutional sponsorship or collaboration remains welcome. The only direct usage cost to users is optional AI provider fees for Step 2, paid to that provider, not to cite.review."}},{"@type":"Question","name":"Do you see my API keys or documents?","acceptedAnswer":{"@type":"Answer","text":"No. Your keys are stored only in your browser's localStorage and are never transmitted to cite.review's servers. AI provider calls go directly from your browser to the AI company. The source code is public and auditable."}},{"@type":"Question","name":"What is an AI hallucination?","acceptedAnswer":{"@type":"Answer","text":"An AI hallucination is when an AI generates information that sounds plausible and is stated confidently, but is factually wrong or entirely fabricated. In legal work, this includes inventing case names, citation formats, courts, dates, and even the substance of a case's holding."}},{"@type":"Question","name":"Does it work for non-U.S. jurisdictions?","acceptedAnswer":{"@type":"Answer","text":"Document parsing can still extract text from non-U.S. documents if the file is readable. But citation verification currently focuses on U.S. materials only, including U.S. case law through CourtListener and U.S. statutes and federal materials through Cornell LII and GovInfo."}},{"@type":"Question","name":"What file formats are supported right now?","acceptedAnswer":{"@type":"Answer","text":"cite.review supports .docx and .pdf file uploads, plus .txt, .md (Markdown), and .html as text-first sources. You can also paste plain text directly."}},{"@type":"Question","name":"What about journal articles, Restatements, and Westlaw or Lexis citations?","acceptedAnswer":{"@type":"Answer","text":"cite.review recognizes law review and journal citations, Restatement citations, and Westlaw or Lexis citation strings. For each, it provides pre-filled Google Scholar or Westlaw search links so you can verify them manually with one click. It resolves journal reporter abbreviations to full journal names, links Restatement citations to pre-filled Westlaw secondary-source searches, and generates Westlaw and Google Scholar query links from citation text in your memo. Content verification remains a manual step — cite.review handles the search construction."}},{"@type":"Question","name":"Attorney-Client Privilege, LLM APIs, and United States v. Heppner","acceptedAnswer":{"@type":"Answer","text":"United States v. Heppner rejected privilege claims around consumer AI chats. cite.review uses a narrower workflow: Step 1 sends citation checks to legal databases, while Step 2 sends citation-adjacent memo excerpts and opinion text directly from your browser to your chosen AI provider. That architecture supports a stronger confidentiality argument than public chatbot use, but privilege remains fact-specific and depends on provider terms, firm policy, and jurisdiction."}}]}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does cite.review do, and why does it exist?","acceptedAnswer":{"@type":"Answer","text":"cite.review catches AI-hallucinated legal citations before they reach a court. It checks whether cited authorities actually exist and whether they support the propositions in your draft. In 2023, lawyers in Mata v. Avianca were sanctioned for filing AI-generated citations to nonexistent cases. In April 2026, Sullivan & Cromwell apologized to a federal bankruptcy court for the same problem. cite.review is the free, open-source response."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. cite.review has no business model and no plans to build one. The real cost includes development time, AI token spend during iteration, and ongoing domain/infrastructure expenses, currently absorbed by Kirin Chang to keep the tool free. Institutional sponsorship or collaboration remains welcome. The only direct usage cost to users is optional AI provider fees for Step 2, paid to that provider, not to cite.review."}},{"@type":"Question","name":"Do you see my API keys or documents?","acceptedAnswer":{"@type":"Answer","text":"No. Your keys are stored only in your browser's localStorage and are never transmitted to cite.review's servers. AI provider calls go directly from your browser to the AI company. The source code is public and auditable."}},{"@type":"Question","name":"What is an AI hallucination?","acceptedAnswer":{"@type":"Answer","text":"An AI hallucination is when an AI generates information that sounds plausible and is stated confidently, but is factually wrong or entirely fabricated. In legal work, this includes inventing case names, citation formats, courts, dates, and even the substance of a case's holding."}},{"@type":"Question","name":"Does it work for non-U.S. jurisdictions?","acceptedAnswer":{"@type":"Answer","text":"Document parsing can still extract text from non-U.S. documents if the file is readable. But citation verification currently focuses on U.S. materials only, including U.S. case law through CourtListener and U.S. statutes and federal materials through Cornell LII and GovInfo."}},{"@type":"Question","name":"What file formats are supported right now?","acceptedAnswer":{"@type":"Answer","text":"cite.review supports .docx and .pdf file uploads, plus .txt, .md (Markdown), and .html as text-first sources. You can also paste plain text directly."}},{"@type":"Question","name":"What about journal articles, Restatements, and Westlaw or Lexis citations?","acceptedAnswer":{"@type":"Answer","text":"cite.review recognizes law review and journal citations, Restatement citations, and Westlaw or Lexis citation strings. For each, it provides pre-filled Google Scholar or Westlaw search links so you can verify them manually with one click. It resolves journal reporter abbreviations to full journal names, links Restatement citations to pre-filled Westlaw secondary-source searches, and generates Westlaw and Google Scholar query links from citation text in your memo. Content verification remains a manual step. cite.review handles the search construction."}},{"@type":"Question","name":"Attorney-Client Privilege, LLM APIs, and United States v. Heppner","acceptedAnswer":{"@type":"Answer","text":"United States v. Heppner rejected privilege claims around consumer AI chats. cite.review uses a narrower workflow: Step 1 sends citation checks to legal databases, while Step 2 sends citation-adjacent memo excerpts and opinion text directly from your browser to your chosen AI provider. That architecture supports a stronger confidentiality argument than public chatbot use, but privilege remains fact-specific and depends on provider terms, firm policy, and jurisdiction."}}]}
 </script>
 <link rel="stylesheet" href="./shared-shell.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -356,7 +356,7 @@
           <p>In 2023, lawyers in <em>Mata v. Avianca</em> were sanctioned for filing AI-generated citations to nonexistent cases. In April 2026, Sullivan &amp; Cromwell apologized to a federal bankruptcy court for the same problem.</p>
           <p>The core problem: when a tool is known to invent legal citations, submitting unverified output is not just carelessness. It is taking a known risk with what you represent to a court.</p>
           <p>This is also the argument in <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6464098" target="_blank" rel="noopener"><em>Hallucinated Authority: AI Citations as Reckless Misrepresentation</em>, 115 Georgetown Law Journal (Online) (forthcoming 2026)</a>, by Kirin Chang (the person who built this site).</p>
-          <p>So cite.review is not only a theoretical position. It is a practical response: a free, open-source tool that makes citation verification easier in real legal workflows. Some similar products exist, but many are paid and closed-source. This project aims to keep the core protection accessible and auditable for everyone, especially users with fewer resources.</p>
+          <p>cite.review is the practical response: free, open-source, and auditable. Similar tools exist, but most are paid and closed. The goal is to keep core citation verification accessible to everyone.</p>
         </div>
       </details>
 
@@ -416,19 +416,19 @@
         <div class="faq-body">
           <p>cite.review runs each citation through Step 1: cross-referencing against three authoritative public databases:</p>
           <ul>
-            <li><strong><a href="https://www.courtlistener.com/" target="_blank" rel="noopener">CourtListener</a></strong> (Free Law Project) — federal and state case law. cite.review checks whether the case exists in their index, whether the case name matches, and whether the reporter, volume, and page are consistent.</li>
-            <li><strong><a href="https://www.law.cornell.edu/" target="_blank" rel="noopener">Cornell LII</a></strong> — U.S. Code and federal regulations.</li>
-            <li><strong><a href="https://www.govinfo.gov/" target="_blank" rel="noopener">GovInfo</a></strong> — official U.S. government publications (Public Laws, Federal Register, CFR, etc.).</li>
+            <li><strong><a href="https://www.courtlistener.com/" target="_blank" rel="noopener">CourtListener</a></strong> (Free Law Project): federal and state case law. cite.review checks whether the case exists, whether the case name matches, and whether the reporter, volume, and page are consistent.</li>
+            <li><strong><a href="https://www.law.cornell.edu/" target="_blank" rel="noopener">Cornell LII</a></strong>: U.S. Code and federal regulations.</li>
+            <li><strong><a href="https://www.govinfo.gov/" target="_blank" rel="noopener">GovInfo</a></strong>: official U.S. government publications (Public Laws, Federal Register, CFR, etc.).</li>
           </ul>
           <p>A citation is marked <strong>Verified</strong> when it is found and all key fields match. It is marked <strong>Warning</strong> when something is found but some fields don't match. It is marked <strong>Not Found</strong> when no matching record can be located.</p>
-          <p>Step 2 is optional: for verified cases, cite.review retrieves the actual opinion text and asks your chosen AI provider whether the case supports the proposition in your memo. This check runs from your browser directly to the AI company — cite.review is not in the middle.</p>
+          <p>Step 2 is optional: for verified cases, cite.review retrieves the actual opinion text and asks your chosen AI provider whether the case supports the proposition in your memo. This check runs from your browser directly to the AI company. cite.review is not in the middle.</p>
         </div>
       </details>
 
       <details class="faq-item">
         <summary>What if a case isn't in CourtListener?</summary>
         <div class="faq-body">
-          <p>CourtListener's coverage is very broad — it indexes federal courts going back to the founding era, and most major state courts. However, there are gaps:</p>
+          <p>CourtListener's coverage is very broad. It indexes federal courts going back to the founding era and most major state courts. There are some gaps:</p>
           <ul>
             <li>Very recent decisions (published within the past few days) may not yet be indexed</li>
             <li>Some state trial court decisions are not in the database</li>
@@ -442,9 +442,9 @@
       <details class="faq-item">
         <summary>Does cite.review work with statutes and regulations, not just cases?</summary>
         <div class="faq-body">
-          <p>Yes — but with an important caveat. cite.review verifies that a cited provision <em>exists</em> (e.g., that 42 U.S.C. § 1983 is a real provision at that location), not that the statutory text actually says what you claim it says.</p>
+          <p>Yes, with one caveat. cite.review verifies that a cited provision <em>exists</em> (e.g., that 42 U.S.C. § 1983 is a real provision at that location), not that the statutory text says what you claim it says.</p>
           <p>For statute and regulatory citations, cite.review uses Cornell LII for U.S. Code and Code of Federal Regulations citations, and GovInfo for Public Laws, the Federal Register, and other official government documents. The check confirms the referenced provision exists at the location the citation points to.</p>
-          <p>It does <strong>not</strong> read the statutory text or evaluate whether the provision supports the proposition in your document. For that, you still need to read the statute manually. cite.review catches fabricated citation strings — like citing a code section that does not exist — but it does not catch a real provision cited for something it does not actually say. That remains a human review step.</p>
+          <p>It does <strong>not</strong> read the statutory text or check whether it supports your proposition. cite.review catches fabricated citation strings (like citing a code section that does not exist), but not a real provision cited for something it does not say. That remains a human review step.</p>
         </div>
       </details>
 
@@ -459,13 +459,13 @@
       <details class="faq-item">
         <summary>What about journal articles, Restatements, and Westlaw or Lexis citations?</summary>
         <div class="faq-body">
-          <p>cite.review recognizes these citation types and provides pre-filled search links so you can verify them manually with one click — no retyping required. It cannot automatically verify their content.</p>
+          <p>cite.review recognizes these citation types and provides pre-filled search links for one-click manual verification. It cannot automatically verify their content.</p>
           <ul>
-            <li><strong>Law review and journal articles</strong> — cite.review parses the Bluebook reporter abbreviation and resolves it to the full journal name (e.g., <em>57 SUFFOLK U. L. REV. 345</em> → Suffolk University Law Review). Each citation links directly to a pre-filled <a href="https://scholar.google.com/" target="_blank" rel="noopener">Google Scholar</a> query for the article so you can locate the source without typing.</li>
-            <li><strong>Restatement citations</strong> — detected automatically (e.g., <em>Restatement (Second) of Torts § 402A</em>) and linked to a pre-filled <a href="https://1.next.westlaw.com/" target="_blank" rel="noopener">Westlaw</a> secondary-sources search. You follow the link and confirm the section number.</li>
-            <li><strong>Westlaw or Lexis citations in your memo</strong> — cite.review tries to match these against CourtListener. If a match is found, it provides CourtListener, Westlaw, and Google Scholar links. If not, it still generates a pre-filled Westlaw and Google Scholar search link from the citation text so you can verify with one click.</li>
+            <li><strong>Law review and journal articles</strong>: cite.review parses the Bluebook reporter abbreviation and resolves it to the full journal name (e.g., <em>57 SUFFOLK U. L. REV. 345</em> → Suffolk University Law Review). Each citation links to a pre-filled <a href="https://scholar.google.com/" target="_blank" rel="noopener">Google Scholar</a> query.</li>
+            <li><strong>Restatement citations</strong>: detected automatically (e.g., <em>Restatement (Second) of Torts § 402A</em>) and linked to a pre-filled <a href="https://1.next.westlaw.com/" target="_blank" rel="noopener">Westlaw</a> secondary-sources search. Follow the link and confirm the section number.</li>
+            <li><strong>Westlaw or Lexis citations</strong>: cite.review tries to match these against CourtListener. If found, it provides CourtListener, Westlaw, and Google Scholar links. If not, it generates pre-filled search links so you can verify with one click.</li>
           </ul>
-          <p>For all of these, the verification is a quick manual step — click the link, confirm the source exists and says what you say it says. cite.review handles the search construction; the substantive review is yours.</p>
+          <p>For all of these, verification is one click: follow the link and confirm the source exists and says what you claim. cite.review builds the search; the substantive review is yours.</p>
         </div>
       </details>
 
@@ -501,9 +501,9 @@
       <details class="faq-item">
         <summary>Do you see my API keys?</summary>
         <div class="faq-body">
-          <p><strong>No.</strong> When you enter an API key in cite.review, it is saved in your browser's <code>localStorage</code> — the same mechanism websites use to remember your preferences and settings. Your browser does not send this to cite.review's servers automatically.</p>
-          <p>When you run Step 2 (memo support check), your AI provider key is used by your browser to make a request directly to the AI company's API. cite.review's server is not involved in that call.</p>
-          <p>The only information that passes through cite.review's proxy server is the content of your CourtListener database queries — not your document text, not your AI keys.</p>
+          <p><strong>No.</strong> API keys are saved in your browser's <code>localStorage</code> and never sent to cite.review's servers.</p>
+          <p>When you run Step 2, your browser makes the API request directly to the AI company. cite.review's server is not involved.</p>
+          <p>The only information that passes through cite.review's proxy is CourtListener query content, not your document text or AI keys.</p>
           <p>You can verify this by reading the source code: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>.</p>
         </div>
       </details>
@@ -511,8 +511,8 @@
       <details class="faq-item">
         <summary>Does my document get uploaded to a server?</summary>
         <div class="faq-body">
-          <p>Your document is processed entirely in your browser. When you upload a DOCX, PDF, TXT, Markdown, or HTML file, it is read by JavaScript running locally on your machine — no upload occurs.</p>
-          <p>The only data that leaves your browser are the individual citation strings sent to the legal databases for verification (CourtListener, Cornell LII, GovInfo). These are plain citation references — not your document's arguments, facts, or any privileged content.</p>
+          <p>Your document is processed entirely in your browser. Nothing is uploaded.</p>
+          <p>The only data that leaves your browser are individual citation strings sent to the legal databases (CourtListener, Cornell LII, GovInfo). These are plain citation strings, not your document's arguments, facts, or privileged content.</p>
           <p>If you use an AI provider for Step 2, the opinion text retrieved from CourtListener and the relevant excerpt from your memo are sent to your chosen AI provider according to that provider's privacy policy. cite.review does not receive or store this data.</p>
         </div>
       </details>
@@ -520,8 +520,8 @@
       <details class="faq-item">
         <summary>Is it safe to use for confidential client documents?</summary>
         <div class="faq-body">
-          <p>Step 1 (database verification) does not transmit the contents of your document — only citation strings like "556 U.S. 662." This is unlikely to raise privilege concerns.</p>
-          <p>Step 2 (AI memo support check) does send the relevant excerpt from your memo — along with the opinion text — to your AI provider. Whether this is appropriate for confidential client work depends on your firm's policies and the privacy terms of the AI provider you choose. Review those before using Step 2 with client documents.</p>
+          <p>Step 1 does not transmit document contents, only citation strings like "556 U.S. 662." This is unlikely to raise privilege concerns.</p>
+          <p>Step 2 does send the relevant memo excerpt and the retrieved opinion text to your AI provider. Whether that is appropriate for confidential client work depends on your firm's policies and the provider's privacy terms. Review those before using Step 2 with client documents.</p>
           <p>If you use a local AI model (Ollama / LM Studio), Step 2 never leaves your machine at all.</p>
         </div>
       </details>
@@ -539,7 +539,7 @@
         <summary>How do I verify that the code does what you say it does?</summary>
         <div class="faq-body">
           <p>The full source code is on GitHub: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>.</p>
-          <p>The frontend is a single HTML file — you can open it in your browser's DevTools and inspect every network request it makes. The backend worker code is in <code>worker/index.js</code>.</p>
+          <p>The frontend is a single HTML file. Open it in your browser's DevTools and inspect every network request it makes. The backend worker code is in <code>worker/index.js</code>.</p>
           <p>If you find something that doesn't match what's described here, please <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open an issue</a>.</p>
         </div>
       </details>
@@ -560,7 +560,7 @@
       <details class="faq-item">
         <summary>Can I contribute code?</summary>
         <div class="faq-body">
-          <p>Yes. Pull requests are welcome. The codebase is a straightforward Alpine.js + vanilla HTML/CSS/JS project with a Cloudflare Worker backend — no build step required for the frontend.</p>
+          <p>Yes. Pull requests are welcome. The codebase is Alpine.js + vanilla HTML/CSS/JS with a Cloudflare Worker backend. No build step required for the frontend.</p>
           <p>Before opening a large PR, it's worth opening an issue first to discuss the approach, so effort isn't wasted on something that won't be merged for design or architectural reasons.</p>
         </div>
       </details>
@@ -584,7 +584,7 @@
 
     <div class="note-box ok">
       <strong>Still have a question?</strong><br>
-      <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">Open an issue on GitHub</a> — questions are welcome, not just bug reports.<br>
+      <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">Open an issue on GitHub</a>. Questions are welcome, not just bug reports.<br>
       Or contact Kirin directly via <a href="https://kirinchang.com/contact/" target="_blank" rel="noopener">Contact Form</a> or <a href="https://www.linkedin.com/in/kirin-chang/" target="_blank" rel="noopener">LinkedIn</a>.
     </div>
 
