@@ -25,7 +25,7 @@
 <meta name="twitter:image" content="https://cite.review/og-image.png">
 <!-- Structured data: FAQ -->
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Why does this tool exist?","acceptedAnswer":{"@type":"Answer","text":"Lawyers were sanctioned in Mata v. Avianca for filing AI-generated citations to cases that did not exist. In April 2026, Sullivan & Cromwell also apologized to a federal bankruptcy court for AI-hallucinated citations. Kirin Chang's forthcoming article in Georgetown Law Journal (Online) argues that using known-risk AI citations without verification can be reckless misrepresentation. cite.review is the practical, open-source tool response to reduce that risk."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. cite.review has no business model and no plans to build one. The real cost includes development time, AI token spend during iteration, and ongoing domain/infrastructure expenses, currently absorbed by Kirin Chang to keep the tool free. Institutional sponsorship or collaboration remains welcome. The only direct usage cost to users is optional AI provider fees for Step 2, paid to that provider, not to cite.review."}},{"@type":"Question","name":"Do you see my API keys or documents?","acceptedAnswer":{"@type":"Answer","text":"No. Your keys are stored only in your browser's localStorage and are never transmitted to cite.review's servers. AI provider calls go directly from your browser to the AI company. The source code is public and auditable."}},{"@type":"Question","name":"What is an AI hallucination?","acceptedAnswer":{"@type":"Answer","text":"An AI hallucination is when an AI generates information that sounds plausible and is stated confidently, but is factually wrong or entirely fabricated. In legal work, this includes inventing case names, citation formats, courts, dates, and even the substance of a case's holding."}},{"@type":"Question","name":"Does it work for non-U.S. jurisdictions?","acceptedAnswer":{"@type":"Answer","text":"Document parsing can still extract text from non-U.S. documents if the file is readable. But citation verification currently focuses on U.S. materials only, including U.S. case law through CourtListener and U.S. statutes and federal materials through Cornell LII and GovInfo."}},{"@type":"Question","name":"What file formats are supported right now?","acceptedAnswer":{"@type":"Answer","text":"cite.review supports .docx and .pdf file uploads, plus .txt, .md (Markdown), and .html as text-first sources. You can also paste plain text directly."}},{"@type":"Question","name":"What about journal articles, Restatements, and Westlaw or Lexis citations?","acceptedAnswer":{"@type":"Answer","text":"cite.review recognizes law review and journal citations, Restatement citations, and Westlaw or Lexis citation strings. For each, it provides pre-filled Google Scholar or Westlaw search links so you can verify them manually with one click. It resolves journal reporter abbreviations to full journal names, links Restatement citations to pre-filled Westlaw secondary-source searches, and generates Westlaw and Google Scholar query links from citation text in your memo. Content verification remains a manual step — cite.review handles the search construction."}},{"@type":"Question","name":"Attorney-Client Privilege, LLM APIs, and United States v. Heppner","acceptedAnswer":{"@type":"Answer","text":"United States v. Heppner rejected privilege claims around consumer AI chats. cite.review uses a narrower workflow: Step 1 sends citation checks to legal databases, while Step 2 sends citation-adjacent memo excerpts and opinion text directly from your browser to your chosen AI provider. That architecture supports a stronger confidentiality argument than public chatbot use, but privilege remains fact-specific and depends on provider terms, firm policy, and jurisdiction."}}]}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does cite.review do, and why does it exist?","acceptedAnswer":{"@type":"Answer","text":"cite.review catches AI-hallucinated legal citations before they reach a court. It checks whether cited authorities actually exist and whether they support the propositions in your draft. In 2023, lawyers in Mata v. Avianca were sanctioned for filing AI-generated citations to nonexistent cases. In April 2026, Sullivan & Cromwell apologized to a federal bankruptcy court for the same problem. cite.review is the free, open-source response."}},{"@type":"Question","name":"Is it free?","acceptedAnswer":{"@type":"Answer","text":"Yes. cite.review has no business model and no plans to build one. The real cost includes development time, AI token spend during iteration, and ongoing domain/infrastructure expenses, currently absorbed by Kirin Chang to keep the tool free. Institutional sponsorship or collaboration remains welcome. The only direct usage cost to users is optional AI provider fees for Step 2, paid to that provider, not to cite.review."}},{"@type":"Question","name":"Do you see my API keys or documents?","acceptedAnswer":{"@type":"Answer","text":"No. Your keys are stored only in your browser's localStorage and are never transmitted to cite.review's servers. AI provider calls go directly from your browser to the AI company. The source code is public and auditable."}},{"@type":"Question","name":"What is an AI hallucination?","acceptedAnswer":{"@type":"Answer","text":"An AI hallucination is when an AI generates information that sounds plausible and is stated confidently, but is factually wrong or entirely fabricated. In legal work, this includes inventing case names, citation formats, courts, dates, and even the substance of a case's holding."}},{"@type":"Question","name":"Does it work for non-U.S. jurisdictions?","acceptedAnswer":{"@type":"Answer","text":"Document parsing can still extract text from non-U.S. documents if the file is readable. But citation verification currently focuses on U.S. materials only, including U.S. case law through CourtListener and U.S. statutes and federal materials through Cornell LII and GovInfo."}},{"@type":"Question","name":"What file formats are supported right now?","acceptedAnswer":{"@type":"Answer","text":"cite.review supports .docx and .pdf file uploads, plus .txt, .md (Markdown), and .html as text-first sources. You can also paste plain text directly."}},{"@type":"Question","name":"What about journal articles, Restatements, and Westlaw or Lexis citations?","acceptedAnswer":{"@type":"Answer","text":"cite.review recognizes law review and journal citations, Restatement citations, and Westlaw or Lexis citation strings. For each, it provides pre-filled Google Scholar or Westlaw search links so you can verify them manually with one click. It resolves journal reporter abbreviations to full journal names, links Restatement citations to pre-filled Westlaw secondary-source searches, and generates Westlaw and Google Scholar query links from citation text in your memo. Content verification remains a manual step — cite.review handles the search construction."}},{"@type":"Question","name":"Attorney-Client Privilege, LLM APIs, and United States v. Heppner","acceptedAnswer":{"@type":"Answer","text":"United States v. Heppner rejected privilege claims around consumer AI chats. cite.review uses a narrower workflow: Step 1 sends citation checks to legal databases, while Step 2 sends citation-adjacent memo excerpts and opinion text directly from your browser to your chosen AI provider. That architecture supports a stronger confidentiality argument than public chatbot use, but privilege remains fact-specific and depends on provider terms, firm policy, and jurisdiction."}}]}
 </script>
 <link rel="stylesheet" href="./shared-shell.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -350,10 +350,11 @@
       <p class="faq-section-title">Background</p>
 
       <details class="faq-item">
-        <summary>Why does cite.review need to exist?</summary>
+        <summary>What does cite.review do, and why does it exist?</summary>
         <div class="faq-body">
-          <p>In 2023, the lawyers in <em>Mata v. Avianca</em> were sanctioned after filing AI-generated citations to cases that did not exist. In April 2026, Sullivan &amp; Cromwell also apologized to a federal bankruptcy court for AI-hallucinated citations.</p>
-          <p>The core problem is simple: when a tool is already known to invent legal citations, submitting output without verification is not just carelessness. It is taking a known risk with what you represent to a court.</p>
+          <p>cite.review catches AI-hallucinated legal citations before they reach a court. It checks whether cited authorities actually exist and whether they support the propositions in your draft.</p>
+          <p>In 2023, lawyers in <em>Mata v. Avianca</em> were sanctioned for filing AI-generated citations to nonexistent cases. In April 2026, Sullivan &amp; Cromwell apologized to a federal bankruptcy court for the same problem.</p>
+          <p>The core problem: when a tool is known to invent legal citations, submitting unverified output is not just carelessness. It is taking a known risk with what you represent to a court.</p>
           <p>This is also the argument in <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6464098" target="_blank" rel="noopener"><em>Hallucinated Authority: AI Citations as Reckless Misrepresentation</em>, 115 Georgetown Law Journal (Online) (forthcoming 2026)</a>, by Kirin Chang (the person who built this site).</p>
           <p>So cite.review is not only a theoretical position. It is a practical response: a free, open-source tool that makes citation verification easier in real legal workflows. Some similar products exist, but many are paid and closed-source. This project aims to keep the core protection accessible and auditable for everyone, especially users with fewer resources.</p>
         </div>
@@ -362,7 +363,7 @@
       <details class="faq-item">
         <summary>What is an "AI hallucination"?</summary>
         <div class="faq-body">
-          <p>An AI hallucination is when an AI model generates information that sounds plausible and is stated with apparent confidence, but is factually wrong or entirely invented.</p>
+          <p>An AI hallucination is when a model generates information that sounds plausible and confident, but is factually wrong or entirely invented.</p>
           <p>In legal work, this shows up as:</p>
           <ul>
             <li>Case names that look real but don't exist in any database</li>
@@ -370,20 +371,42 @@
             <li>Real cases cited for propositions they don't actually stand for</li>
             <li>Quotations from opinions that were never written</li>
           </ul>
-          <p>The last category — real cases misrepresented — is particularly dangerous, because the case exists and survives a basic search, but the substance attributed to it is wrong. cite.review's Step 2 is designed specifically to catch this.</p>
+          <p>The last category is particularly dangerous: the case exists and survives a basic search, but the substance attributed to it is wrong. cite.review's Step 2 is designed specifically to catch this.</p>
         </div>
       </details>
 
       <details class="faq-item">
         <summary>Who built this, and why?</summary>
         <div class="faq-body">
-          <p>cite.review was built by <a href="https://kirinchang.com" target="_blank" rel="noopener">Kirin Chang</a>, a Research Fellow at the U.S.-Asia Law Institute at NYU School of Law and an Affiliate Research Fellow at Emory Law's AI & the Future of Work initiative, and a member of the New York and Texas Bars.</p>
-          <p>cite.review is part of the broader <a href="https://lawreview.tools/" target="_blank" rel="noopener">lawreview.tools</a> ecosystem, which focuses on reducing friction in law review and legal-academic writing workflows. Some tools in that suite are also directly useful in practice settings. For example, <a href="https://lawreview.tools/docx-redline-name-cleaner/" target="_blank" rel="noopener">docx-redline-name-cleaner</a> is often practical for law firm redline cleanup. If any of that sounds useful, you are very welcome to explore the full toolkit.</p>
-          <p>The tool is open source so other researchers and practitioners can audit it, adapt it, and suggest improvements.</p>
+          <p><a href="https://kirinchang.com" target="_blank" rel="noopener">Kirin Chang</a> built cite.review. He is a Research Fellow at the U.S.-Asia Law Institute at NYU School of Law, an Affiliate Research Fellow at Emory Law's AI &amp; the Future of Work initiative, and a member of the New York and Texas Bars.</p>
+          <p>The reason: after lawyers were sanctioned and law firms apologized for AI-hallucinated citations, there was still no free, open-source tool to catch them. Most existing solutions were paid and closed. cite.review is the practical response. Kirin's forthcoming article in <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6464098" target="_blank" rel="noopener"><em>Georgetown Law Journal (Online)</em></a> argues that submitting AI citations without verification can constitute reckless misrepresentation.</p>
+          <p>cite.review is part of the broader <a href="https://lawreview.tools/" target="_blank" rel="noopener">lawreview.tools</a> suite of tools for legal-academic writing workflows. The source code is open so anyone can audit it, adapt it, or suggest improvements.</p>
         </div>
       </details>
     </section>
+    <!-- SECTION: COST -->
+    <section class="faq-section">
+      <p class="faq-section-title">Cost</p>
 
+      <details class="faq-item" open>
+        <summary>Does cite.review cost anything?</summary>
+        <div class="faq-body">
+          <p><strong>cite.review is free. There is no subscription, no trial period, and no plans to charge users.</strong></p>
+          <p>The legal databases cite.review uses (CourtListener, Cornell LII, and GovInfo) are all free public services. A CourtListener account is free to create and provides a generous API rate limit for normal legal work.</p>
+          <p>The only cost you might incur is your AI provider's API fee if you use Step 2. This is charged by the AI company, not by cite.review. A typical support check costs a fraction of a cent per citation. If you use a local AI model, even that cost is zero.</p>
+        </div>
+      </details>
+
+      <details class="faq-item">
+        <summary>Will it stay free?</summary>
+        <div class="faq-body">
+          <p>Yes. cite.review has no business model and no plans to build one. It grew out of genuine frustration with a real problem in legal practice, not a product searching for a market.</p>
+          <p>The real costs are significant: development time, repeated model testing, AI token spend, and ongoing domain/infrastructure expenses. <a href="https://kirinchang.com" target="_blank" rel="noopener">Kirin</a> has absorbed all of that personally to keep the tool free and available.</p>
+          <p>If any law school library, court, firm, nonprofit, or other institution wants to sponsor this work or collaborate, that support is very welcome.</p>
+          <p>The source code is licensed under AGPL-3.0, which requires any public deployment of a modified version to also release that version as open source. This keeps the tool in the commons and prevents someone from taking the code, adding a paywall, and competing with the free original.</p>
+        </div>
+      </details>
+    </section>
     <!-- SECTION: HOW IT WORKS -->
     <section class="faq-section">
       <p class="faq-section-title">How it works</p>
@@ -411,7 +434,7 @@
             <li>Some state trial court decisions are not in the database</li>
             <li>Non-U.S. jurisdictions are not covered</li>
           </ul>
-          <p>If a case comes back <strong>Not Found</strong>, it does not necessarily mean the citation is fabricated — it may just mean it's outside CourtListener's coverage. You should independently verify those citations through Westlaw, Lexis, or the court's official website.</p>
+          <p>If a case comes back <strong>Not Found</strong>, that does not necessarily mean it is fabricated. It may just be outside CourtListener's coverage. Independently verify those citations through Westlaw, Lexis, or the court's official website.</p>
           <p>A <strong>Verified</strong> result means the citation appeared in the database with matching fields. It is a strong signal, but it does not substitute for independent professional judgment.</p>
         </div>
       </details>
@@ -508,7 +531,7 @@
         <div class="faq-body">
           <p><em>United States v. Heppner</em> is the SDNY case where the court rejected privilege/work-product protection for a defendant's Claude chats. The opinion focused on consumer-platform usage and confidentiality expectations under those terms.</p>
           <p>cite.review's architecture is narrower: Step 1 sends citation lookups to legal databases, and Step 2 sends only citation-adjacent memo excerpts plus opinion text from your browser directly to your selected AI provider. cite.review's worker does not proxy your AI prompts or store your AI keys.</p>
-          <p>Our view is therefore structural, not categorical: this setup is easier to characterize as a controlled legal-tech workflow than public chatbot use, but privilege is still fact-specific and depends on provider terms, firm policy, and jurisdiction. For the most conservative path, use Step 1 only or a local model for Step 2.</p>
+          <p>cite.review's setup is easier to characterize as a controlled legal-tech workflow than public chatbot use, but privilege is still fact-specific and depends on provider terms, firm policy, and jurisdiction. For the most conservative path, use Step 1 only or a local model for Step 2.</p>
         </div>
       </details>
 
@@ -518,34 +541,6 @@
           <p>The full source code is on GitHub: <a href="https://github.com/kirinccchang/citereview" target="_blank" rel="noopener">github.com/kirinccchang/citereview</a>.</p>
           <p>The frontend is a single HTML file — you can open it in your browser's DevTools and inspect every network request it makes. The backend worker code is in <code>worker/index.js</code>.</p>
           <p>If you find something that doesn't match what's described here, please <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open an issue</a>.</p>
-        </div>
-      </details>
-    </section>
-
-    <!-- SECTION: COST -->
-    <section class="faq-section">
-      <p class="faq-section-title">Cost</p>
-
-      <details class="faq-item" open>
-        <summary>Does cite.review cost anything?</summary>
-        <div class="faq-body">
-          <p><strong>cite.review itself is currently free. There is no subscription, no trial period, and no current plan to charge users.</strong></p>
-          <p>The legal databases cite.review uses — CourtListener, Cornell LII, and GovInfo — are all free public services. A CourtListener account is free to create and provides a generous API rate limit for normal legal work.</p>
-          <p>The only costs you might incur are:</p>
-          <ul>
-            <li>Your AI provider's API fee, if you use Step 2. This is charged by the AI company, not by cite.review. A typical support-check analysis costs a fraction of a cent per citation.</li>
-          </ul>
-          <p>If you use a local AI model, even that cost is zero.</p>
-        </div>
-      </details>
-
-      <details class="faq-item">
-        <summary>Will it stay free?</summary>
-        <div class="faq-body">
-          <p>Yes. cite.review has no business model and no plans to build one. It grew out of genuine frustration with a real problem in legal practice — not a product searching for a market.</p>
-          <p>The real cost is significant: development time, repeated model testing, AI token spend during iteration, and ongoing domain/infrastructure expenses. <a href="https://kirinchang.com" target="_blank" rel="noopener">Kirin</a> has absorbed all of that personally to keep the tool free and available.</p>
-          <p>If any law school library, court, firm, nonprofit, or other institution wants to sponsor this work or collaborate on the project, that support is very welcome.</p>
-          <p>The source code is licensed under AGPL-3.0, which requires any public network deployment of a modified version to also release that version as open source. This is an intentional choice to keep the tool in the commons and prevent a scenario where someone takes the code, adds a paywall, and competes with the free original.</p>
         </div>
       </details>
     </section>
@@ -579,7 +574,7 @@
       </details>
 
       <details class="faq-item">
-        <summary>Is there a Chinese version?</summary>
+        <summary>As a Mandarin speaker, will there be a Chinese interface?</summary>
         <div class="faq-body">
           <p>The application itself is in English only. The README has a <a href="https://github.com/kirinccchang/citereview/blob/main/README.zh-TW.md" target="_blank" rel="noopener">Traditional Chinese translation</a>.</p>
           <p>If there is sufficient interest in a localized UI, that can be considered. Feel free to <a href="https://github.com/kirinccchang/citereview/issues" target="_blank" rel="noopener">open a feature request</a>.</p>
