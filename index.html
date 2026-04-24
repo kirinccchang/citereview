@@ -2691,6 +2691,8 @@
                                     <div class="evidence-label"
                                       x-text="cit.analysis.bestPassage ? 'Key passage (verbatim from opinion)' : (cit.opinionText ? 'Key passage extraction incomplete' : 'Opinion text unavailable')">
                                     </div>
+                                    <div class="result-meta" x-show="cit.analysis.sourceType || cit.analysis.passageOffset != null"
+                                      x-text="'Source: ' + (cit.analysis.sourceType || 'unknown') + (cit.analysis.passageOffset != null ? (' · offset ' + cit.analysis.passageOffset) : '')"></div>
                                     <div class="evidence-text"
                                       x-text="cit.analysis.bestPassage || (cit.opinionText
                                         ? 'Opinion text is available, but this run could not isolate a stable verbatim key passage. Click Check support again to re-run extraction.'
@@ -3083,6 +3085,9 @@ function verifyVerbatimPassage(candidate, opinionText) {
   if (!candidate || !opinionText) return null;
   const raw = String(candidate).trim();
   if (!raw) return null;
+  if (/slip opinion|syllabus note|reporter of decisions|detroit timber|the syllabus constitutes no part/i.test(raw)) {
+    return null;
+  }
 
   // Strict check first.
   if (opinionText.includes(raw)) return raw;
@@ -3095,7 +3100,7 @@ function verifyVerbatimPassage(candidate, opinionText) {
 }
 
 function fallbackOpinionPassage(opinionText, maxLen = 500) {
-  const clean = normalizeWs(opinionText);
+  const clean = normalizeWs(stripOpinionBoilerplate(opinionText));
   if (!clean) return null;
   if (clean.length <= maxLen) return clean;
 
@@ -5073,7 +5078,9 @@ function app() {
       cit.analysis = { status: 'analyzing' };
       try {
         if (!cit.opinionText && cit.result?.clId) {
-          cit.opinionText = await this._fetchOpinionText(cit.result.clId);
+          const payload = await this._fetchOpinionText(cit.result.clId);
+          cit.opinionText = payload?.text || '';
+          cit.opinionType = payload?.sourceType || null;
         }
         cit.analysis = await this._analyzeCitation(cit);
       } catch (e) {
@@ -5092,7 +5099,9 @@ function app() {
         const needOpinion = this.citations.filter(c => c.kind === 'case' && c.result?.status === 'verified' && c.result?.clId && !c.opinionText);
         for (let i = 0; i < needOpinion.length; i += 2) {
           await Promise.all(needOpinion.slice(i, i + 2).map(async cit => {
-            cit.opinionText = await this._fetchOpinionText(cit.result.clId);
+              const payload = await this._fetchOpinionText(cit.result.clId);
+              cit.opinionText = payload?.text || '';
+              cit.opinionType = payload?.sourceType || null;
           }));
         }
         // Analyze only verified case citations
@@ -5147,8 +5156,8 @@ function app() {
         });
 
         // Prefer the fullest majority text available.
-        return pool[0].text;
-      } catch { return ''; }
+        return { text: pool[0].text, sourceType: pool[0].type || 'unknown' };
+      } catch { return { text: '', sourceType: null }; }
     },
 
     async _throttleAIInputByTokens(inputText) {
@@ -5255,7 +5264,20 @@ function app() {
               // Final fallback: show a deterministic excerpt instead of false "unavailable".
               verifiedPassage = fallbackOpinionPassage(cit.opinionText, 500);
             }
-            return { mode: 'ai', status: 'done', supported, summary: p.summary || text.slice(0, 200), concerns: p.concerns || null, memoContext: context, bestPassage: verifiedPassage, memoIssue: p.memo_issue || null, caseHolding: p.case_holding || null };
+            const passageOffset = verifiedPassage ? cit.opinionText.indexOf(verifiedPassage) : -1;
+            return {
+              mode: 'ai',
+              status: 'done',
+              supported,
+              summary: p.summary || text.slice(0, 200),
+              concerns: p.concerns || null,
+              memoContext: context,
+              bestPassage: verifiedPassage,
+              memoIssue: p.memo_issue || null,
+              caseHolding: p.case_holding || null,
+              sourceType: cit.opinionType || null,
+              passageOffset: passageOffset >= 0 ? passageOffset : null,
+            };
           }
         }
         // No parseable JSON — surface raw response as summary so user sees what happened.
@@ -5268,6 +5290,8 @@ function app() {
           bestPassage: bestPassage
             ? (verifyVerbatimPassage(bestPassage.slice(0, 700), cit.opinionText) || bestPassage.slice(0, 500))
             : fallbackOpinionPassage(cit.opinionText, 500),
+          sourceType: cit.opinionType || null,
+          passageOffset: null,
         };
       } catch (e) {
         return { mode: 'ai', status: 'error', summary: e.message };
