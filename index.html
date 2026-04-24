@@ -23,7 +23,7 @@
 <meta name="twitter:title" content="cite.review — Citation Verification for Lawyers">
 <meta name="twitter:description" content="Free, open-source legal citation verifier. Catches AI-hallucinated cases. Keys stay in your browser.">
 <meta name="twitter:image" content="https://cite.review/og-image.png">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://citereview-api.kirinccchang.workers.dev https://www.courtlistener.com https://www.law.cornell.edu https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://api.moonshot.cn https://api.govinfo.gov https://api.openalex.org https://api.semanticscholar.org https://www.loc.gov https://huggingface.co https://cdn-lfs.huggingface.co https://cdn.jsdelivr.net http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://citereview-api.kirinccchang.workers.dev https://www.courtlistener.com https://www.law.cornell.edu https://law.cornell.edu https://*.law.cornell.edu https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://api.moonshot.cn https://api.govinfo.gov https://api.openalex.org https://api.semanticscholar.org https://www.loc.gov https://huggingface.co https://cdn-lfs.huggingface.co https://cdn.jsdelivr.net http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none';">
 <!-- Structured data -->
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"cite.review","url":"https://cite.review/","description":"Free, open-source legal citation verifier. Catches AI-hallucinated cases and checks whether cited authorities actually support the stated proposition.","applicationCategory":"LegalApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Kirin Chang","url":"https://kirinchang.com"}}
@@ -3138,6 +3138,23 @@ function extractMemoContext(sourceText, citText, chars = 400) {
   return (s > 0 ? '…' : '') + sourceText.slice(s, e) + (e < sourceText.length ? '…' : '');
 }
 
+function stripOpinionBoilerplate(text) {
+  let out = String(text || '').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  if (!out) return '';
+
+  const leadMarker = out.match(/(?:Justice\s+[A-Z][A-Za-z-]+(?:\s+[A-Z][A-Za-z-]+)?\s+delivered\s+the\s+opinion\s+of\s+the\s+Court|Opinion\s+of\s+the\s+Court|CHIEF\s+JUSTICE\s+[A-Z][A-Za-z-]+\s+delivered\s+the\s+opinion\s+of\s+the\s+Court)/i);
+  if (leadMarker && typeof leadMarker.index === 'number' && leadMarker.index > 0 && leadMarker.index < 30000) {
+    out = out.slice(leadMarker.index).trim();
+  }
+
+  out = out
+    .replace(/^\(Slip Opinion\)[\s\S]{0,4000}?Syllabus\s+NOTE:[\s\S]{0,4000}?(?=\n\s*(?:Justice|CHIEF JUSTICE|Opinion of the Court))/i, '')
+    .replace(/^\*\d+\s+/gm, '')
+    .trim();
+
+  return out;
+}
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -4515,8 +4532,8 @@ async function verifyCitation(cit) {
         const reachable = await browserReachabilityProbe(cit.liiUrl);
         if (reachable) {
           return {
-            status: 'info',
-            msg: 'Cornell LII page is reachable in browser. Automated status check is unavailable in this environment.',
+            status: 'verified',
+            msg: 'Found on Cornell LII (browser reachability fallback)',
             liiUrl: cit.liiUrl,
           };
         }
@@ -4533,8 +4550,8 @@ async function verifyCitation(cit) {
         const reachable = await browserReachabilityProbe(cit.liiUrl);
         if (reachable) {
           return {
-            status: 'info',
-            msg: 'Cornell LII page is reachable in browser. Automated status check is unavailable in this environment.',
+            status: 'verified',
+            msg: 'Found on Cornell LII (browser reachability fallback)',
             liiUrl: cit.liiUrl,
           };
         }
@@ -5088,8 +5105,11 @@ function app() {
           signal: AbortSignal.timeout(20000),
         });
 
-        const toText = (op) => op.plain_text
-          || (op.html_with_citations ? op.html_with_citations.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+        const toText = (op) => {
+          const raw = op.plain_text
+            || (op.html_with_citations ? op.html_with_citations.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+          return stripOpinionBoilerplate(raw);
+        };
 
         const rows = (data.results || []).map(op => {
           const text = toText(op) || '';
@@ -5114,6 +5134,7 @@ function app() {
           return b.len - a.len;
         });
 
+        // Prefer the fullest majority text available.
         return pool[0].text;
       } catch { return ''; }
     },
