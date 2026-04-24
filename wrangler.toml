@@ -8,6 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Override via: wrangler secret put GOVINFO_KEY
 [vars]
 GOVINFO_KEY = "DEMO_KEY"
+ALLOWED_ORIGINS = "https://cite.review,https://www.cite.review,http://localhost:8788,http://127.0.0.1:8788"
 
 [[kv_namespaces]]
 binding = "CACHE"
