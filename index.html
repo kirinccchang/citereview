@@ -3122,9 +3122,19 @@ function highlightCitation(text, citText) {
 window.highlightCitation = highlightCitation;
 
 // Extract ~chars of context around a citation in the source text
-function extractMemoContext(sourceText, citText, chars = 400) {
+function extractMemoContext(sourceText, citOrText, chars = 400) {
+  const citText = typeof citOrText === 'string' ? citOrText : (citOrText?.text || '');
   if (!citText) return null;
   if (!sourceText) return null;
+
+  const rawStart = citOrText?.raw?.fullSpanStart;
+  const rawEnd = citOrText?.raw?.fullSpanEnd;
+  if (typeof rawStart === 'number' && rawStart >= 0 && rawStart < sourceText.length) {
+    const s = Math.max(0, rawStart - chars);
+    const e = Math.min(sourceText.length, (typeof rawEnd === 'number' ? rawEnd : rawStart + citText.length) + chars);
+    return (s > 0 ? '…' : '') + sourceText.slice(s, e) + (e < sourceText.length ? '…' : '');
+  }
+
   let idx = sourceText.indexOf(citText);
   if (idx < 0) {
     const normSrc = sourceText.replace(/\s+/g, ' ');
@@ -3149,6 +3159,8 @@ function stripOpinionBoilerplate(text) {
 
   out = out
     .replace(/^\(Slip Opinion\)[\s\S]{0,4000}?Syllabus\s+NOTE:[\s\S]{0,4000}?(?=\n\s*(?:Justice|CHIEF JUSTICE|Opinion of the Court))/i, '')
+    .replace(/The\s+syllabus\s+constitutes\s+no\s+part\s+of\s+the\s+opinion\s+of\s+the\s+Court[\s\S]{0,800}?Detroit\s+Timber[\s\S]{0,200}?\./ig, '')
+    .replace(/Syllabus\s+NOTE:[\s\S]{0,1200}?prepared\s+by\s+the\s+Reporter\s+of\s+Decisions[\s\S]{0,400}?\./ig, '')
     .replace(/^\*\d+\s+/gm, '')
     .trim();
 
@@ -5161,7 +5173,7 @@ function app() {
 
     async _analyzeCitation(cit) {
       try {
-        const context = extractMemoContext(this.sourceText, cit.text, 400);
+        const context = extractMemoContext(this.sourceText, cit, 400);
 
         // Find the best-matching passage from the actual opinion text using semantic search.
         // This is what gets displayed as "case text" — never AI-generated.

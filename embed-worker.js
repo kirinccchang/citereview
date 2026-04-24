@@ -29,6 +29,11 @@ function chunkText(text, maxChars = 500, overlap = 100) {
   return chunks;
 }
 
+function isBoilerplateChunk(text) {
+  const t = String(text || '').toLowerCase();
+  return /slip opinion|syllabus note|reporter of decisions|detroit timber|the syllabus constitutes no part/i.test(t);
+}
+
 self.onmessage = async ({ data: { id, queryText, opinionText } }) => {
   try {
     const pipe = await getPipeline();
@@ -37,6 +42,7 @@ self.onmessage = async ({ data: { id, queryText, opinionText } }) => {
     const chunks = chunkText(opinionText, 500, 100);
     let maxSim = 0, bestPassage = null;
     for (const chunk of chunks) {
+      if (isBoilerplateChunk(chunk)) continue;
       const sim = cosineSim(queryVec, await embed(chunk));
       if (sim > maxSim) { maxSim = sim; bestPassage = chunk; }
     }
