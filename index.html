@@ -2691,8 +2691,6 @@
                                     <div class="evidence-label"
                                       x-text="cit.analysis.bestPassage ? 'Key passage (verbatim from opinion)' : (cit.opinionText ? 'Key passage extraction incomplete' : 'Opinion text unavailable')">
                                     </div>
-                                    <div class="result-meta" x-show="cit.analysis.sourceType || cit.analysis.passageOffset != null"
-                                      x-text="'Source: ' + (cit.analysis.sourceType || 'unknown') + (cit.analysis.passageOffset != null ? (' · offset ' + cit.analysis.passageOffset) : '')"></div>
                                     <div class="evidence-text"
                                       x-text="cit.analysis.bestPassage || (cit.opinionText
                                         ? 'Opinion text is available, but this run could not isolate a stable verbatim key passage. Click Check support again to re-run extraction.'
@@ -3081,11 +3079,15 @@ function normalizeWs(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+function isOpinionBoilerplatePassage(text) {
+  return /slip opinion|syllabus note|reporter of decisions|detroit timber|the syllabus constitutes no part|prepared by the reporter of decisions|for the convenience of the reader/i.test(String(text || ''));
+}
+
 function verifyVerbatimPassage(candidate, opinionText) {
   if (!candidate || !opinionText) return null;
   const raw = String(candidate).trim();
   if (!raw) return null;
-  if (/slip opinion|syllabus note|reporter of decisions|detroit timber|the syllabus constitutes no part/i.test(raw)) {
+  if (isOpinionBoilerplatePassage(raw)) {
     return null;
   }
 
@@ -3113,6 +3115,55 @@ function fallbackOpinionPassage(opinionText, maxLen = 500) {
   return clean.slice(0, maxLen).trim() + '…';
 }
 
+function isMemoBoilerplateContext(text) {
+  return /\bi\s+submit\s+this\s+affirmation\s+in\s+opposition\b|\baffirmation\s+in\s+opposition\b|\bstate\s+of\s+new\s+york\b|\bcounty\s+of\b|\bsupreme\s+court\s+of\s+the\s+state\s+of\s+new\s+york\b|\bto\s+dismiss\s+for\s+failure\s+to\s+state\s+a\s+claim\b/i.test(String(text || ''));
+}
+
+function scoreMemoContextWindow(win) {
+  const t = String(win || '');
+  if (!t) return -1;
+  let score = 0;
+  if (/\b(holding|held|reasoned|appl(?:y|ies|ied)|standard|plausib(?:le|ility)|dismiss(?:ed|al)|12\(b\)\(6\)|rule|court|claim|alleg(?:e|ed|ations)|facts?)\b/i.test(t)) score += 3;
+  if (/\btherefore\b|\bthus\b|\bbecause\b|\bunder\b/i.test(t)) score += 1;
+  if (isMemoBoilerplateContext(t)) score -= 5;
+  return score;
+}
+
+function extractContextAt(sourceText, idx, len, chars) {
+  const s = Math.max(0, idx - chars);
+  const e = Math.min(sourceText.length, idx + len + chars);
+  return (s > 0 ? '…' : '') + sourceText.slice(s, e) + (e < sourceText.length ? '…' : '');
+}
+
+function sanitizeOpinionSourceType(type) {
+  const t = String(type || '').trim().toLowerCase();
+  if (!t) return null;
+  const m = {
+    '010combined': 'combined-opinion',
+    '015headmatter': 'headmatter',
+    '020lead': 'lead-opinion',
+    '025plurality': 'plurality-opinion',
+    '030concurrence': 'concurrence',
+    '035concurrenceinpart': 'concurrence-in-part',
+    '040dissent': 'dissent',
+    '050addendum': 'addendum',
+    '060remittitur': 'remittitur',
+    '070rehearing': 'rehearing',
+    '080onbankeen': 'en-banc',
+    'combined': 'combined-opinion',
+    'lead': 'lead-opinion',
+    'majority': 'majority-opinion',
+    'main': 'majority-opinion',
+  };
+  return m[t] || t.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || null;
+}
+
+function formatOpinionSourceLabel(type, offset) {
+  const label = sanitizeOpinionSourceType(type) || 'unknown';
+  const off = typeof offset === 'number' ? ` · offset ${offset}` : '';
+  return `Source: ${label}${off}`;
+}
+
 // Escape HTML and wrap the citation text in <mark> for x-html rendering
 function highlightCitation(text, citText) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3126,31 +3177,68 @@ function highlightCitation(text, citText) {
 // and would throw ReferenceError. Expose helpers needed in attribute expressions.
 window.highlightCitation = highlightCitation;
 
-// Extract ~chars of context around a citation in the source text
-function extractMemoContext(sourceText, citOrText, chars = 400) {
+// Extract the paragraph(s) containing the citation from the source text.
+// Paragraph-based extraction is strictly better than a fixed character window:
+//  - never bleeds back into document boilerplate (affirmation header, caption)
+//  - always captures the full sentence/clause that contains the legal argument
+function extractMemoContext(sourceText, citOrText) {
   const citText = typeof citOrText === 'string' ? citOrText : (citOrText?.text || '');
-  if (!citText) return null;
-  if (!sourceText) return null;
+  if (!citText || !sourceText) return null;
 
+  // Locate the citation in the source text.
+  // Priority 1: raw span offset from eyecite (most accurate).
+  let spanIdx = -1;
+  let spanLen = citText.length;
   const rawStart = citOrText?.raw?.fullSpanStart;
-  const rawEnd = citOrText?.raw?.fullSpanEnd;
+  const rawEnd   = citOrText?.raw?.fullSpanEnd;
   if (typeof rawStart === 'number' && rawStart >= 0 && rawStart < sourceText.length) {
-    const s = Math.max(0, rawStart - chars);
-    const e = Math.min(sourceText.length, (typeof rawEnd === 'number' ? rawEnd : rawStart + citText.length) + chars);
-    return (s > 0 ? '…' : '') + sourceText.slice(s, e) + (e < sourceText.length ? '…' : '');
+    spanIdx = rawStart;
+    spanLen = typeof rawEnd === 'number' ? Math.max(1, rawEnd - rawStart) : citText.length;
+  } else {
+    // Priority 2: literal string search.
+    spanIdx = sourceText.indexOf(citText);
+    if (spanIdx < 0) {
+      // Priority 3: whitespace-normalised search.
+      const normSrc = sourceText.replace(/\s+/g, ' ');
+      const normCit = citText.replace(/\s+/g, ' ');
+      const ni = normSrc.indexOf(normCit);
+      if (ni < 0) return null;
+      const s = Math.max(0, ni - 400), e = Math.min(normSrc.length, ni + normCit.length + 400);
+      return (s > 0 ? '…' : '') + normSrc.slice(s, e) + (e < normSrc.length ? '…' : '');
+    }
   }
 
-  let idx = sourceText.indexOf(citText);
-  if (idx < 0) {
-    const normSrc = sourceText.replace(/\s+/g, ' ');
-    const normCit = citText.replace(/\s+/g, ' ');
-    idx = normSrc.indexOf(normCit);
-    if (idx < 0) return null;
-    const s = Math.max(0, idx - chars), e = Math.min(normSrc.length, idx + normCit.length + chars);
-    return (s > 0 ? '…' : '') + normSrc.slice(s, e) + (e < normSrc.length ? '…' : '');
-  }
-  const s = Math.max(0, idx - chars), e = Math.min(sourceText.length, idx + citText.length + chars);
-  return (s > 0 ? '…' : '') + sourceText.slice(s, e) + (e < sourceText.length ? '…' : '');
+  // Find the paragraph that contains this citation.
+  // A paragraph boundary is \n\n (blank line) OR a numbered-paragraph marker
+  // at the start of a line, e.g. "13. " or "\t14. ".
+  const before = sourceText.slice(0, spanIdx);
+  const after  = sourceText.slice(spanIdx + spanLen);
+
+  // Search backward for the nearest paragraph break (double-newline or numbered paragraph).
+  const dblNlBack = before.lastIndexOf('\n\n');
+  const numberedBack = (() => {
+    for (let i = before.length - 1; i >= 0; i--) {
+      if (before[i] === '\n' && /^\s*\d+[.)\s]/.test(before.slice(i + 1, i + 8))) return i;
+    }
+    return -1;
+  })();
+  const paraStart = Math.max(dblNlBack, numberedBack) + 1;
+
+  // Search forward for the nearest paragraph break.
+  const dblNlFwd     = after.search(/\n\n/);
+  const numberedFwd  = after.search(/\n\s*\d+[.)\s]/);
+  let paraEndRel = -1;
+  if (dblNlFwd >= 0 && numberedFwd >= 0) paraEndRel = Math.min(dblNlFwd, numberedFwd);
+  else if (dblNlFwd >= 0) paraEndRel = dblNlFwd;
+  else if (numberedFwd >= 0) paraEndRel = numberedFwd;
+  const paraEnd = paraEndRel >= 0 ? spanIdx + spanLen + paraEndRel : sourceText.length;
+
+  // Add a small margin so very short paragraphs still get a bit of surrounding context.
+  const s = Math.max(0, paraStart - 120);
+  const e = Math.min(sourceText.length, paraEnd + 120);
+  const snippet = sourceText.slice(s, e).trim();
+
+  return (s > 0 ? '…' : '') + snippet + (e < sourceText.length ? '…' : '');
 }
 
 function stripOpinionBoilerplate(text) {
@@ -5147,16 +5235,24 @@ function app() {
 
         const majorityPool = rows.filter(r => !r.isDissent && !r.isConcur);
         const pool = majorityPool.length ? majorityPool : rows;
+        // Prefer a clean lead/majority opinion over the combined headmatter+opinion
+        // file (010combined) which starts with the Syllabus/Reporter's note.
+        const OPINION_RANK = {
+          '020lead': 10, '025plurality': 9,
+          '010combined': 5, '015headmatter': 1,
+          '030concurrence': 0, '035concurrenceinpart': 0,
+          '040dissent': -1,
+        };
         pool.sort((a, b) => {
-          const aCombined = /combined|lead|majority|main/.test(a.type) ? 1 : 0;
-          const bCombined = /combined|lead|majority|main/.test(b.type) ? 1 : 0;
-          if (aCombined !== bCombined) return bCombined - aCombined;
-          if (a.isPerCuriam !== b.isPerCuriam) return (b.isPerCuriam ? 1 : 0) - (a.isPerCuriam ? 1 : 0);
+          const aRank = OPINION_RANK[a.type] ?? 3;
+          const bRank = OPINION_RANK[b.type] ?? 3;
+          if (aRank !== bRank) return bRank - aRank;
+          if (a.isPerCuriam !== b.isPerCuriam) return b.isPerCuriam ? 1 : -1;
           return b.len - a.len;
         });
 
         // Prefer the fullest majority text available.
-        return { text: pool[0].text, sourceType: pool[0].type || 'unknown' };
+        return { text: pool[0].text, sourceType: sanitizeOpinionSourceType(pool[0].type) || 'unknown' };
       } catch { return { text: '', sourceType: null }; }
     },
 
@@ -5183,19 +5279,23 @@ function app() {
     async _analyzeCitation(cit) {
       try {
         const context = extractMemoContext(this.sourceText, cit, 400);
+        const cleanOpinionText = stripOpinionBoilerplate(cit.opinionText || '');
+        if (cleanOpinionText && cleanOpinionText !== cit.opinionText) {
+          cit.opinionText = cleanOpinionText;
+        }
 
         // Find the best-matching passage from the actual opinion text using semantic search.
         // This is what gets displayed as "case text" — never AI-generated.
         let bestPassage = null;
-        if (cit.opinionText) {
+        if (cleanOpinionText) {
           try {
             // Off-thread: embed-worker.js handles all WASM inference so the UI never freezes
-            bestPassage = await findBestPassage(context || cit.text, cit.opinionText);
+            bestPassage = await findBestPassage(context || cit.text, cleanOpinionText);
           } catch (_) { /* semantic unavailable — continue without passage */ }
         }
 
         // Use full selected opinion text for legal reasoning fidelity.
-        const opinionSnippet = cit.opinionText || null;
+        const opinionSnippet = cleanOpinionText || null;
         const prompt = [
           `You are checking a citation in a legal memo. Follow these steps in order:`,
           ``,
@@ -5254,17 +5354,19 @@ function app() {
             const supported = (p.domain_match === false && (p.supported === 'yes' || p.supported === 'partial'))
               ? 'no' : (p.supported || 'uncertain');
             // Verify keyPassage is verbatim — if AI hallucinated it, discard silently
-            let verifiedPassage = verifyVerbatimPassage(p.keyPassage, cit.opinionText);
+            let verifiedPassage = verifyVerbatimPassage(p.keyPassage, cleanOpinionText);
             if (!verifiedPassage && bestPassage) {
               // Fall back to semantic best-passage if AI quote fails verification.
-              verifiedPassage = verifyVerbatimPassage(bestPassage.slice(0, 700), cit.opinionText)
-                || bestPassage.slice(0, 500);
+              verifiedPassage = verifyVerbatimPassage(bestPassage.slice(0, 700), cleanOpinionText);
             }
-            if (!verifiedPassage && cit.opinionText) {
+            if (!verifiedPassage && cleanOpinionText) {
               // Final fallback: show a deterministic excerpt instead of false "unavailable".
-              verifiedPassage = fallbackOpinionPassage(cit.opinionText, 500);
+              verifiedPassage = fallbackOpinionPassage(cleanOpinionText, 500);
             }
-            const passageOffset = verifiedPassage ? cit.opinionText.indexOf(verifiedPassage) : -1;
+            if (verifiedPassage && isOpinionBoilerplatePassage(verifiedPassage)) {
+              verifiedPassage = null;
+            }
+            const passageOffset = verifiedPassage ? cleanOpinionText.indexOf(verifiedPassage) : -1;
             return {
               mode: 'ai',
               status: 'done',
@@ -5275,7 +5377,7 @@ function app() {
               bestPassage: verifiedPassage,
               memoIssue: p.memo_issue || null,
               caseHolding: p.case_holding || null,
-              sourceType: cit.opinionType || null,
+              sourceType: sanitizeOpinionSourceType(cit.opinionType) || null,
               passageOffset: passageOffset >= 0 ? passageOffset : null,
             };
           }
@@ -5288,9 +5390,9 @@ function app() {
           summary: text.replace(/[\n\r]+/g, ' ').slice(0, 400),
           memoContext: context,
           bestPassage: bestPassage
-            ? (verifyVerbatimPassage(bestPassage.slice(0, 700), cit.opinionText) || bestPassage.slice(0, 500))
-            : fallbackOpinionPassage(cit.opinionText, 500),
-          sourceType: cit.opinionType || null,
+            ? verifyVerbatimPassage(bestPassage.slice(0, 700), cleanOpinionText)
+            : fallbackOpinionPassage(cleanOpinionText, 500),
+          sourceType: sanitizeOpinionSourceType(cit.opinionType) || null,
           passageOffset: null,
         };
       } catch (e) {
