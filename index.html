@@ -2764,8 +2764,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.10.38/b
 
 const API = 'https://citereview-api.kirinccchang.workers.dev';
 let _citationWorker = null;
+let _citationWorkerDisabled = false;
+
+function disableCitationWorker() {
+  _citationWorkerDisabled = true;
+  try { _citationWorker?.terminate?.(); } catch (_) { /* noop */ }
+  _citationWorker = null;
+}
 
 function getCitationWorker() {
+  if (_citationWorkerDisabled) return null;
   if (_citationWorker) return _citationWorker;
   const code = `
     import { getCitations } from 'https://esm.sh/@beshkenadze/eyecite@2.7.6';
@@ -2796,17 +2804,20 @@ function getCitationWorker() {
   `;
   const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
   _citationWorker = new Worker(url, { type: 'module' });
+  _citationWorker.onerror = () => disableCitationWorker();
   return _citationWorker;
 }
 
 async function getCitationsAsync(text) {
+  if (_citationWorkerDisabled) return getCitations(text);
   try {
     const worker = getCitationWorker();
+    if (!worker) return getCitations(text);
     const rows = await new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         cleanup();
         reject(new Error('Citation worker timed out'));
-      }, 10000);
+      }, 2500);
 
       const cleanup = () => {
         clearTimeout(timeoutId);
@@ -2832,6 +2843,7 @@ async function getCitationsAsync(text) {
     });
     return rows;
   } catch (_) {
+    disableCitationWorker();
     // Fallback to main-thread extraction if worker/module loading fails.
     return getCitations(text);
   }

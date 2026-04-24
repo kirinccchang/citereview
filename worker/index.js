@@ -7,20 +7,35 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 function getAllowedOrigins(env) {
   const configured = String(env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-  return new Set(configured.length ? configured : DEFAULT_ALLOWED_ORIGINS);
+  return new Set([...DEFAULT_ALLOWED_ORIGINS, ...configured]);
+}
+
+function isLocalDevOrigin(origin) {
+  try {
+    const u = new URL(origin);
+    return (u.hostname === 'localhost' || u.hostname === '127.0.0.1') && u.protocol === 'http:';
+  } catch (_) {
+    return false;
+  }
+}
+
+function resolveAllowedOrigin(origin, env) {
+  if (!origin) return null;
+  if (getAllowedOrigins(env).has(origin)) return origin;
+  if (isLocalDevOrigin(origin)) return origin;
+  return null;
 }
 
 function isAllowedOrigin(request, env) {
   const origin = request.headers.get('Origin');
-  if (!origin) return false;
-  return getAllowedOrigins(env).has(origin);
+  return !!resolveAllowedOrigin(origin, env);
 }
 
 function corsHeaders(request, env) {
   const origin = request.headers.get('Origin');
-  const allowed = origin && getAllowedOrigins(env).has(origin);
+  const allowOrigin = resolveAllowedOrigin(origin, env);
   return {
-    'Access-Control-Allow-Origin': allowed ? origin : 'null',
+    'Access-Control-Allow-Origin': allowOrigin || 'null',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Vary': 'Origin',
