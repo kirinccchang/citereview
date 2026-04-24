@@ -23,7 +23,7 @@
 <meta name="twitter:title" content="cite.review — Citation Verification for Lawyers">
 <meta name="twitter:description" content="Free, open-source legal citation verifier. Catches AI-hallucinated cases. Keys stay in your browser.">
 <meta name="twitter:image" content="https://cite.review/og-image.png">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://citereview-api.kirinccchang.workers.dev https://www.courtlistener.com https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://api.moonshot.cn https://api.govinfo.gov https://api.openalex.org https://api.semanticscholar.org https://www.loc.gov http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://citereview-api.kirinccchang.workers.dev https://www.courtlistener.com https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://api.moonshot.cn https://api.govinfo.gov https://api.openalex.org https://api.semanticscholar.org https://www.loc.gov https://huggingface.co https://cdn-lfs.huggingface.co https://cdn.jsdelivr.net http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none';">
 <!-- Structured data -->
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"cite.review","url":"https://cite.review/","description":"Free, open-source legal citation verifier. Catches AI-hallucinated cases and checks whether cited authorities actually support the stated proposition.","applicationCategory":"LegalApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Kirin Chang","url":"https://kirinchang.com"}}
@@ -2940,6 +2940,7 @@ function getAISettings() {
 function saveAISettings(s) { localStorage.setItem('citereview_ai', JSON.stringify(s)); }
 
 async function callAIDirect(messages, system) {
+  const AI_TIMEOUT_MS = 45000;
   const s = getAISettings();
   const provider = s.provider || 'anthropic';
   const anthropicModel = s.anthropicModel || 'claude-haiku-4-5-20251001';
@@ -2964,6 +2965,7 @@ async function callAIDirect(messages, system) {
         system: system || undefined,
         messages,
       }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     });
     const data = await res.json();
     if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || JSON.stringify(data.error)));
@@ -2985,7 +2987,12 @@ async function callAIDirect(messages, system) {
     const body = { model, messages: system ? [{ role: 'system', content: system }, ...messages] : messages };
     const headers = { 'Content-Type': 'application/json' };
     if (key) headers['Authorization'] = `Bearer ${key}`;
-    const res = await fetch(`${baseUrl}/chat/completions`, { method: 'POST', headers, body: JSON.stringify(body) });
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
     const data = await res.json();
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     return data.choices?.[0]?.message?.content || '';
@@ -3003,6 +3010,7 @@ async function callAIDirect(messages, system) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts }] }),
+        signal: AbortSignal.timeout(AI_TIMEOUT_MS),
       }
     );
     const data = await res.json();
@@ -3020,6 +3028,13 @@ let _embedWorker = null;
 const _embedWorkerCallbacks = new Map();
 let _embedWorkerMsgId = 0;
 
+function failEmbedWorkerPending(reason = 'embed-worker unavailable') {
+  for (const [, cb] of _embedWorkerCallbacks) {
+    cb?.reject?.(new Error(reason));
+  }
+  _embedWorkerCallbacks.clear();
+}
+
 function getEmbedWorker() {
   if (_embedWorker) return _embedWorker;
   _embedWorker = new Worker('./embed-worker.js', { type: 'module' });
@@ -3032,6 +3047,8 @@ function getEmbedWorker() {
   _embedWorker.onerror = (e) => {
     // If the worker fails to load (e.g. Content-Security-Policy), degrade gracefully
     console.warn('embed-worker failed to load:', e.message);
+    failEmbedWorkerPending(e.message || 'embed-worker failed to load');
+    try { _embedWorker?.terminate?.(); } catch (_) { /* noop */ }
     _embedWorker = null;
   };
   return _embedWorker;
@@ -3043,7 +3060,14 @@ function findBestPassage(queryText, opinionText) {
       const worker = getEmbedWorker();
       if (!worker) { resolve(null); return; }
       const id = ++_embedWorkerMsgId;
-      _embedWorkerCallbacks.set(id, { resolve, reject });
+      const timeoutId = setTimeout(() => {
+        _embedWorkerCallbacks.delete(id);
+        resolve(null);
+      }, 20000);
+      _embedWorkerCallbacks.set(id, {
+        resolve: (value) => { clearTimeout(timeoutId); resolve(value); },
+        reject: (err) => { clearTimeout(timeoutId); reject(err); },
+      });
       worker.postMessage({ id, queryText, opinionText });
     } catch (e) {
       resolve(null); // degrade gracefully if worker unavailable
@@ -4408,7 +4432,7 @@ async function verifyCitation(cit) {
 
   if (cit.kind === 'statute') {
     const isNetworkLike = (msg) => /network|failed to fetch|timeout|load failed/i.test(String(msg || ''));
-    const retryProxyJson = async (path, payload, timeoutMs = 25000) => {
+    const retryProxyJson = async (path, payload) => {
       let lastErr = null;
       for (let i = 0; i < 2; i++) {
         try {
@@ -4416,7 +4440,6 @@ async function verifyCitation(cit) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(timeoutMs),
           });
           const data = await res.json().catch(() => ({}));
           return { ok: res.ok, data };
@@ -4431,7 +4454,7 @@ async function verifyCitation(cit) {
     // GovInfo: Public Laws (Pub. L. No. XX-YYY)
     if (cit.govInfoUrl) {
       try {
-        const { ok, data } = await retryProxyJson('/api/proxy/govinfo', { url: cit.govInfoUrl }, 15000);
+        const { ok, data } = await retryProxyJson('/api/proxy/govinfo', { url: cit.govInfoUrl });
         if (!ok || data?.error) {
           return {
             status: 'warning',
@@ -4474,7 +4497,7 @@ async function verifyCitation(cit) {
     }
     // Cornell LII: U.S.C., C.F.R., Federal Rules
     try {
-      const { ok, data } = await retryProxyJson('/api/proxy/lii', { url: cit.liiUrl }, 15000);
+      const { ok, data } = await retryProxyJson('/api/proxy/lii', { url: cit.liiUrl });
       if (!ok || data?.error) {
         return {
           status: 'warning',
