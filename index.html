@@ -23,7 +23,7 @@
 <meta name="twitter:title" content="cite.review — Citation Verification for Lawyers">
 <meta name="twitter:description" content="Free, open-source legal citation verifier. Catches AI-hallucinated cases. Keys stay in your browser.">
 <meta name="twitter:image" content="https://cite.review/og-image.png">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://citereview-api.kirinccchang.workers.dev https://www.courtlistener.com https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://api.moonshot.cn https://api.govinfo.gov https://api.openalex.org https://api.semanticscholar.org https://www.loc.gov https://huggingface.co https://cdn-lfs.huggingface.co https://cdn.jsdelivr.net http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com https://esm.sh; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://citereview-api.kirinccchang.workers.dev https://www.courtlistener.com https://www.law.cornell.edu https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://api.moonshot.cn https://api.govinfo.gov https://api.openalex.org https://api.semanticscholar.org https://www.loc.gov https://huggingface.co https://cdn-lfs.huggingface.co https://cdn.jsdelivr.net http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none';">
 <!-- Structured data -->
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"cite.review","url":"https://cite.review/","description":"Free, open-source legal citation verifier. Catches AI-hallucinated cases and checks whether cited authorities actually support the stated proposition.","applicationCategory":"LegalApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Kirin Chang","url":"https://kirinchang.com"}}
@@ -3108,15 +3108,6 @@ function fallbackOpinionPassage(opinionText, maxLen = 500) {
   return clean.slice(0, maxLen).trim() + '…';
 }
 
-function compactOpinionForAI(opinionText, preferredPassage = null, maxLen = 5000) {
-  const preferred = normalizeWs(preferredPassage || '');
-  if (preferred) {
-    return preferred.length <= maxLen ? preferred : preferred.slice(0, maxLen).trim() + '…';
-  }
-  const base = fallbackOpinionPassage(opinionText, maxLen);
-  return base || null;
-}
-
 // Escape HTML and wrap the citation text in <mark> for x-html rendering
 function highlightCitation(text, citText) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4688,6 +4679,8 @@ function app() {
     textInput: '',
     textInputName: '',
     textInputFormat: 'text',
+    aiWindowStartMs: 0,
+    aiTokensUsedInWindow: 0,
 
     init() {
       window.addEventListener('citereview:cl-key-changed', () => {
@@ -5091,13 +5084,58 @@ function app() {
     async _fetchOpinionText(clId) {
       try {
         const data = await fetchCourtListener('/api/rest/v4/opinions/', {
-          params: { cluster: clId, fields: 'plain_text,html_with_citations', page_size: 10 },
+          params: { cluster: clId, fields: 'id,type,author_str,per_curiam,plain_text,html_with_citations', page_size: 20 },
           signal: AbortSignal.timeout(20000),
         });
-        return (data.results || [])
-          .map(op => op.plain_text || (op.html_with_citations ? op.html_with_citations.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : ''))
-          .filter(Boolean).join('\n\n');
+
+        const toText = (op) => op.plain_text
+          || (op.html_with_citations ? op.html_with_citations.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+
+        const rows = (data.results || []).map(op => {
+          const text = toText(op) || '';
+          const lead = text.slice(0, 2000).toLowerCase();
+          const author = String(op.author_str || '').toLowerCase();
+          const type = String(op.type || '').toLowerCase();
+          const isDissent = /dissent/.test(lead) || /dissent/.test(author) || /dissent/.test(type);
+          const isConcur = /concur/.test(lead) || /concur/.test(author) || /concur/.test(type);
+          const isPerCuriam = !!op.per_curiam || /per\s+curiam/.test(lead);
+          return { text, len: text.length, isDissent, isConcur, isPerCuriam, type };
+        }).filter(r => r.text);
+
+        if (!rows.length) return '';
+
+        const majorityPool = rows.filter(r => !r.isDissent && !r.isConcur);
+        const pool = majorityPool.length ? majorityPool : rows;
+        pool.sort((a, b) => {
+          const aCombined = /combined|lead|majority|main/.test(a.type) ? 1 : 0;
+          const bCombined = /combined|lead|majority|main/.test(b.type) ? 1 : 0;
+          if (aCombined !== bCombined) return bCombined - aCombined;
+          if (a.isPerCuriam !== b.isPerCuriam) return (b.isPerCuriam ? 1 : 0) - (a.isPerCuriam ? 1 : 0);
+          return b.len - a.len;
+        });
+
+        return pool[0].text;
       } catch { return ''; }
+    },
+
+    async _throttleAIInputByTokens(inputText) {
+      const TPM_BUDGET = 42000;
+      const WINDOW_MS = 60_000;
+      const now = Date.now();
+      if (!this.aiWindowStartMs || now - this.aiWindowStartMs >= WINDOW_MS) {
+        this.aiWindowStartMs = now;
+        this.aiTokensUsedInWindow = 0;
+      }
+
+      const estTokens = Math.ceil(String(inputText || '').length / 4);
+      if (this.aiTokensUsedInWindow + estTokens > TPM_BUDGET) {
+        const waitMs = Math.max(250, WINDOW_MS - (now - this.aiWindowStartMs) + 250);
+        this.status = `Waiting ${Math.ceil(waitMs / 1000)}s for AI rate limit window…`;
+        await new Promise(r => setTimeout(r, waitMs));
+        this.aiWindowStartMs = Date.now();
+        this.aiTokensUsedInWindow = 0;
+      }
+      this.aiTokensUsedInWindow += estTokens;
     },
 
     async _analyzeCitation(cit) {
@@ -5114,8 +5152,8 @@ function app() {
           } catch (_) { /* semantic unavailable — continue without passage */ }
         }
 
-        // Keep prompt size bounded to avoid provider TPM/rate-limit failures.
-        const opinionSnippet = compactOpinionForAI(cit.opinionText, bestPassage, 5000);
+        // Use full selected opinion text for legal reasoning fidelity.
+        const opinionSnippet = cit.opinionText || null;
         const prompt = [
           `You are checking a citation in a legal memo. Follow these steps in order:`,
           ``,
@@ -5141,10 +5179,24 @@ function app() {
           `STEP 5 — Output JSON only (no markdown, no explanation outside the JSON):`,
           `{"supported":"yes|partial|no|uncertain","memo_issue":"what the memo claims this case stands for","case_holding":"what the case actually holds","domain_match":true|false,"summary":"1-2 sentence verdict explaining your reasoning","concerns":"cite-structural issues only — e.g. wrong reporter, citing a dissent as majority, non-binding court — or null. Do NOT speculate about opinion authorship or majority/dissent attribution unless explicitly stated in the provided text.","keyPassage":"verbatim copied sentence from the opinion above, or null"}`,
         ].join('\n');
-        const text = await callAIDirect(
-          [{ role: 'user', content: prompt }],
-          'You are a careful legal research assistant. Never mark a citation as supported or partially supported if the case\'s legal holding addresses a different legal issue than what the memo is claiming. Domain mismatch = not supported. For keyPassage, copy text character-for-character from the provided opinion — never paraphrase or generate.'
-        );
+        await this._throttleAIInputByTokens(prompt);
+        let text = '';
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            text = await callAIDirect(
+              [{ role: 'user', content: prompt }],
+              'You are a careful legal research assistant. Never mark a citation as supported or partially supported if the case\'s legal holding addresses a different legal issue than what the memo is claiming. Domain mismatch = not supported. For keyPassage, copy text character-for-character from the provided opinion — never paraphrase or generate.'
+            );
+            break;
+          } catch (err) {
+            const msg = String(err?.message || err || '');
+            if (attempt === 0 && /rate.?limit|tokens per minute|429/i.test(msg)) {
+              await new Promise(r => setTimeout(r, 20000));
+              continue;
+            }
+            throw err;
+          }
+        }
         // Greedy match captures the largest {...} block (handles multi-line AI output).
         // Then attempt to repair common issues before parsing.
         const m = text.match(/\{[\s\S]*\}/);
