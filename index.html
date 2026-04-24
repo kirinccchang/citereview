@@ -4418,6 +4418,13 @@ async function verifyCitation(cit) {
         });
         const data = await res.json();
         if (data.exists) return { status: 'verified', msg: `Found on GovInfo (${cit.statuteLabel})`, liiUrl: cit.govInfoUrl };
+        if (data.status === 0 || data.status >= 500 || data.status === 429) {
+          return {
+            status: 'warning',
+            msg: `GovInfo is temporarily unavailable (HTTP ${data.status}). Please retry in a moment.`,
+            liiUrl: cit.govInfoUrl,
+          };
+        }
         return { status: 'error', msg: `Not found on GovInfo (HTTP ${data.status})` };
       } catch (e) {
         return { status: 'error', msg: e.name === 'TimeoutError' ? 'Request timed out' : e.message };

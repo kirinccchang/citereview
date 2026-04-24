@@ -108,10 +108,16 @@ async function proxyGovInfo(request, env) {
   if (!url || !url.startsWith('https://api.govinfo.gov/')) return err('Invalid GovInfo URL', 400, request, env);
   const key = env.GOVINFO_KEY || 'DEMO_KEY';
   const sep = url.includes('?') ? '&' : '?';
+  const target = `${url}${sep}api_key=${key}`;
   try {
-    const res = await fetch(`${url}${sep}api_key=${key}`, {
+    let res = await fetch(target, {
       method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(10000),
     });
+    if (res.status >= 500 || res.status === 405) {
+      res = await fetch(target, {
+        method: 'GET', redirect: 'follow', signal: AbortSignal.timeout(10000),
+      });
+    }
     return json({ exists: res.status < 400, status: res.status, url }, 200, request, env);
   } catch (e) {
     return json({ exists: false, status: 0, error: e.message, url }, 200, request, env);
