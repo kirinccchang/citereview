@@ -4408,7 +4408,7 @@ async function verifyCitation(cit) {
 
   if (cit.kind === 'statute') {
     const isNetworkLike = (msg) => /network|failed to fetch|timeout|load failed/i.test(String(msg || ''));
-    const retryProxyJson = async (path, payload, timeoutMs = 15000) => {
+    const retryProxyJson = async (path, payload, timeoutMs = 25000) => {
       let lastErr = null;
       for (let i = 0; i < 2; i++) {
         try {

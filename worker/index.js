@@ -94,7 +94,19 @@ async function proxyLII(request, env) {
     return err('Invalid LII URL', 400, request, env);
   }
   try {
-    const res = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+    let res = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(10000),
+    });
+    // Some origins/proxies do not handle HEAD consistently; fall back to GET.
+    if (res.status >= 500 || res.status === 405 || res.status === 403) {
+      res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: AbortSignal.timeout(10000),
+      });
+    }
     return json({ exists: res.status === 200, status: res.status, url }, 200, request, env);
   } catch (e) {
     return json({ exists: false, status: 0, error: e.message, url }, 200, request, env);
