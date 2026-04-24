@@ -3108,6 +3108,15 @@ function fallbackOpinionPassage(opinionText, maxLen = 500) {
   return clean.slice(0, maxLen).trim() + '…';
 }
 
+function compactOpinionForAI(opinionText, preferredPassage = null, maxLen = 5000) {
+  const preferred = normalizeWs(preferredPassage || '');
+  if (preferred) {
+    return preferred.length <= maxLen ? preferred : preferred.slice(0, maxLen).trim() + '…';
+  }
+  const base = fallbackOpinionPassage(opinionText, maxLen);
+  return base || null;
+}
+
 // Escape HTML and wrap the citation text in <mark> for x-html rendering
 function highlightCitation(text, citText) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4451,6 +4460,19 @@ async function verifyCitation(cit) {
       throw lastErr || new Error('Network request failed');
     };
 
+    const browserReachabilityProbe = async (url, timeoutMs = 9000) => {
+      try {
+        const probe = fetch(url, { method: 'GET', mode: 'no-cors' });
+        await Promise.race([
+          probe,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('probe timeout')), timeoutMs)),
+        ]);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    };
+
     // GovInfo: Public Laws (Pub. L. No. XX-YYY)
     if (cit.govInfoUrl) {
       try {
@@ -4499,6 +4521,14 @@ async function verifyCitation(cit) {
     try {
       const { ok, data } = await retryProxyJson('/api/proxy/lii', { url: cit.liiUrl });
       if (!ok || data?.error) {
+        const reachable = await browserReachabilityProbe(cit.liiUrl);
+        if (reachable) {
+          return {
+            status: 'info',
+            msg: 'Cornell LII page is reachable in browser. Automated status check is unavailable in this environment.',
+            liiUrl: cit.liiUrl,
+          };
+        }
         return {
           status: 'warning',
           msg: 'Cornell LII check is temporarily unavailable. Please retry in a moment.',
@@ -4509,6 +4539,14 @@ async function verifyCitation(cit) {
       return { status: 'error', msg: `Not found on Cornell LII (HTTP ${data.status})` };
     } catch (e) {
       if (isNetworkLike(e?.message)) {
+        const reachable = await browserReachabilityProbe(cit.liiUrl);
+        if (reachable) {
+          return {
+            status: 'info',
+            msg: 'Cornell LII page is reachable in browser. Automated status check is unavailable in this environment.',
+            liiUrl: cit.liiUrl,
+          };
+        }
         return {
           status: 'warning',
           msg: 'Cornell LII network check failed. Please retry in a moment.',
@@ -5038,10 +5076,9 @@ function app() {
         // Analyze only verified case citations
         const toAnalyze = this.citations.filter(c => c.kind === 'case' && c.result?.status === 'verified');
         for (const cit of toAnalyze) cit.analysis = { status: 'analyzing' };
-        for (let i = 0; i < toAnalyze.length; i += 2) {
-          await Promise.all(toAnalyze.slice(i, i + 2).map(async cit => {
-            cit.analysis = await this._analyzeCitation(cit);
-          }));
+        for (const cit of toAnalyze) {
+          cit.analysis = await this._analyzeCitation(cit);
+          await this.yieldToUI();
         }
         showToast('Memo analysis complete');
       } catch (e) {
@@ -5077,8 +5114,8 @@ function app() {
           } catch (_) { /* semantic unavailable — continue without passage */ }
         }
 
-        // Pass the full opinion text to the AI so it can extract a verbatim key passage.
-        const opinionSnippet = cit.opinionText || null;
+        // Keep prompt size bounded to avoid provider TPM/rate-limit failures.
+        const opinionSnippet = compactOpinionForAI(cit.opinionText, bestPassage, 5000);
         const prompt = [
           `You are checking a citation in a legal memo. Follow these steps in order:`,
           ``,
