@@ -1253,13 +1253,13 @@
     font-family: inherit;
     cursor: pointer;
   }
-  .btn-inline:hover:not(:disabled) { background: var(--surface2); }
+  .btn-inline:hover:not(:disabled):not(.primary) { background: var(--surface2); }
   .btn-inline.primary {
     background: var(--text);
     color: var(--surface);
     border-color: var(--text);
   }
-  .btn-inline.primary:hover:not(:disabled) { opacity: 0.88; }
+  .btn-inline.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
   .btn-inline:disabled { opacity: 0.5; cursor: not-allowed; }
   .analyze-provider-note {
     margin-top: 8px;
