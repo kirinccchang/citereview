@@ -4407,16 +4407,38 @@ async function verifyCitation(cit) {
   }
 
   if (cit.kind === 'statute') {
+    const isNetworkLike = (msg) => /network|failed to fetch|timeout|load failed/i.test(String(msg || ''));
+    const retryProxyJson = async (path, payload, timeoutMs = 15000) => {
+      let lastErr = null;
+      for (let i = 0; i < 2; i++) {
+        try {
+          const res = await fetch(`${API}${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          const data = await res.json().catch(() => ({}));
+          return { ok: res.ok, data };
+        } catch (e) {
+          lastErr = e;
+          if (i === 0) await new Promise(r => setTimeout(r, 350));
+        }
+      }
+      throw lastErr || new Error('Network request failed');
+    };
+
     // GovInfo: Public Laws (Pub. L. No. XX-YYY)
     if (cit.govInfoUrl) {
       try {
-        const res = await fetch(`${API}/api/proxy/govinfo`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: cit.govInfoUrl }),
-          signal: AbortSignal.timeout(15000),
-        });
-        const data = await res.json();
+        const { ok, data } = await retryProxyJson('/api/proxy/govinfo', { url: cit.govInfoUrl }, 15000);
+        if (!ok || data?.error) {
+          return {
+            status: 'warning',
+            msg: 'GovInfo check is temporarily unavailable. Please retry in a moment.',
+            liiUrl: cit.govInfoUrl,
+          };
+        }
         if (data.exists) return { status: 'verified', msg: `Found on GovInfo (${cit.statuteLabel})`, liiUrl: cit.govInfoUrl };
         if (data.status === 0 || data.status >= 500 || data.status === 429) {
           return {
@@ -4427,6 +4449,13 @@ async function verifyCitation(cit) {
         }
         return { status: 'error', msg: `Not found on GovInfo (HTTP ${data.status})` };
       } catch (e) {
+        if (isNetworkLike(e?.message)) {
+          return {
+            status: 'warning',
+            msg: 'GovInfo network check failed. Please retry in a moment.',
+            liiUrl: cit.govInfoUrl,
+          };
+        }
         return { status: 'error', msg: e.name === 'TimeoutError' ? 'Request timed out' : e.message };
       }
     }
@@ -4445,16 +4474,24 @@ async function verifyCitation(cit) {
     }
     // Cornell LII: U.S.C., C.F.R., Federal Rules
     try {
-      const res = await fetch(`${API}/api/proxy/lii`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: cit.liiUrl }),
-        signal: AbortSignal.timeout(15000),
-      });
-      const data = await res.json();
+      const { ok, data } = await retryProxyJson('/api/proxy/lii', { url: cit.liiUrl }, 15000);
+      if (!ok || data?.error) {
+        return {
+          status: 'warning',
+          msg: 'Cornell LII check is temporarily unavailable. Please retry in a moment.',
+          liiUrl: cit.liiUrl,
+        };
+      }
       if (data.exists) return { status: 'verified', msg: `Found on Cornell LII (${cit.statuteLabel || 'federal'})`, liiUrl: cit.liiUrl };
       return { status: 'error', msg: `Not found on Cornell LII (HTTP ${data.status})` };
     } catch (e) {
+      if (isNetworkLike(e?.message)) {
+        return {
+          status: 'warning',
+          msg: 'Cornell LII network check failed. Please retry in a moment.',
+          liiUrl: cit.liiUrl,
+        };
+      }
       return { status: 'error', msg: e.name === 'TimeoutError' ? 'Request timed out' : e.message };
     }
   }
