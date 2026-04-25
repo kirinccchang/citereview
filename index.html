@@ -2057,6 +2057,17 @@
     padding: 7px 9px; color: var(--text2); font-size: 11px; line-height: 1.65;
     max-height: 120px; overflow-y: auto; word-break: break-word; white-space: pre-wrap;
   }
+  .evidence-text-preview {
+    padding: 7px 9px; color: var(--text2); font-size: 11px; line-height: 1.65;
+    word-break: break-word; white-space: pre-wrap;
+  }
+  .evidence-toggle {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: none; background: none; color: var(--text2);
+    font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer; padding: 4px 8px 6px;
+  }
+  .evidence-toggle:hover { color: var(--text1); }
   .evidence-text mark { background: #fef9c3; color: #713f12; border-radius: 2px; padding: 0 1px; font-style: normal; }
   body.dark .evidence-text mark { background: #3d2e00; color: #fde68a; }
 </style>
@@ -2690,7 +2701,19 @@
                                 <div class="evidence-panels">
                                   <div class="evidence-panel">
                                     <div class="evidence-label">Memo context</div>
-                                    <div class="evidence-text" x-html="highlightCitation(cit.analysis.memoContext, cit.text)"></div>
+                                    <template x-if="!cit._showMemoContext">
+                                      <div class="evidence-text-preview"
+                                        x-text="(cit.analysis.memoContext || '').length > 260
+                                          ? (cit.analysis.memoContext || '').slice(0, 260) + '…'
+                                          : (cit.analysis.memoContext || '')"></div>
+                                    </template>
+                                    <template x-if="cit._showMemoContext">
+                                      <div class="evidence-text" x-html="highlightCitation(cit.analysis.memoContext, cit.text)"></div>
+                                    </template>
+                                    <button class="evidence-toggle"
+                                      x-show="(cit.analysis.memoContext || '').length > 260"
+                                      @click="cit._showMemoContext = !cit._showMemoContext"
+                                      x-text="cit._showMemoContext ? 'Hide context' : 'Show full context'"></button>
                                   </div>
                                   <div class="evidence-panel">
                                     <div class="evidence-label"
@@ -5915,7 +5938,12 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
               <tr>
                 ${a.memoContext ? `<td style="width:50%;vertical-align:top;padding:0 6px 0 0">
                   <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#9ca3af;margin-bottom:3px">Memo context</div>
-                  <div style="font-size:11px;line-height:1.5;color:#374151;background:#fff;padding:6px;border-radius:3px;border:1px solid #e2ddd8">${escHtml(a.memoContext)}</div>
+                  ${(a.memoContext || '').length > 280
+                    ? `<details style="background:#fff;border:1px solid #e2ddd8;border-radius:3px;padding:6px">
+                        <summary style="cursor:pointer;color:#4b5563;font-size:11px;font-weight:600">Show full memo context</summary>
+                        <div style="font-size:11px;line-height:1.5;color:#374151;margin-top:6px;white-space:pre-wrap">${escHtml(a.memoContext)}</div>
+                      </details>`
+                    : `<div style="font-size:11px;line-height:1.5;color:#374151;background:#fff;padding:6px;border-radius:3px;border:1px solid #e2ddd8;white-space:pre-wrap">${escHtml(a.memoContext)}</div>`}
                 </td>` : ''}
                 ${a.bestPassage ? `<td style="width:50%;vertical-align:top;padding:0 0 0 6px">
                   <div style="font-size:10px;font-weight:600;text-transform:uppercase;color:#9ca3af;margin-bottom:3px">Key passage (verbatim from opinion)</div>
