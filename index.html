@@ -4108,14 +4108,22 @@ function classifyCitations(rawCitations, sourceText = '') {
     }
 
     if (kind === 'unknown') {
-      if (tokenData === 'Id.' || tokenData.startsWith('Id.') || tokenData.includes('supra') || c.metadata?.antecedentGuess) {
+      const isIdToken = tokenData === 'Id.' || tokenData.startsWith('Id.');
+      const hasSupraSignal = /\bsupra\b/i.test(tokenData) || !!c.metadata?.antecedentGuess;
+      // Guardrail: explicit reporter cites like "In re Soundview Elite Ltd., 543 B.R. 571"
+      // must be verified as cases, even if eyecite sets antecedentGuess/supra metadata.
+      const hasExplicitReporterTriplet = /\b\d{1,4}\s+[A-Z][A-Za-z.']*(?:\s+[A-Z][A-Za-z.'&-]*)*\s+\d{1,5}\b/.test(displayText);
+      const looksLikeCaseLead = /\bIn\s+re\b|\bEx\s+parte\b|\bv\.\s/i.test(displayText) || /^[A-Z]/.test(displayText);
+      const forceStructuredCitation = hasExplicitReporterTriplet && looksLikeCaseLead;
+
+      if (isIdToken || (hasSupraSignal && !forceStructuredCitation)) {
         // Drop truncated footnote back-references like "ornblau, supra", "l., supra", "000d, supra".
         // These are academic "Author, supra note N" fragments where eyecite only captured
         // the tail of an author name or statute section. Legitimate citations always start
         // with an uppercase letter (case name, "Id.", author name).
         if (!/^[A-Z]/.test(displayText)) continue;
         kind = 'id';
-      } else if (groups.reporter || groups.volume) {
+      } else if (groups.reporter || groups.volume || forceStructuredCitation) {
         // Distinguish law review / journal citations from case reporters.
         // Check both the parsed reporter field AND the raw token — the eyecite JS port
         // sometimes doesn't populate groups.reporter for multi-word journal names.
