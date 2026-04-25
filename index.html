@@ -4223,9 +4223,7 @@ function classifyCitations(rawCitations, sourceText = '') {
   // Detects "CaseName, Case No. X:YY-cv-ZZZZ (Court Date)" patterns directly in
   // the source text and emits docket-kind entries for RECAP verification.
   if (sourceText) {
-    const DOCKET_RE = /([A-Z][^,\n;]{3,100}),\s*(?:[Cc]ase\s+[Nn]o\.?|[Cc]iv(?:il)?\.\s+[Nn]o\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\.?|[Aa]ction\s+[Nn]o\.?)\s*(\d{1,2}:\d{2,}-(?:cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,60}\))?/g;
-    let dm;
-    while ((dm = DOCKET_RE.exec(sourceText)) !== null) {
+    const emitDocket = (dm, docketNumIdx, courtIdx = null) => {
       let caseName = dm[1].trim().replace(/[,\s]+$/, '');
       // PDF.js sometimes runs footnotes together without newlines, so the regex captures
       // prose from the preceding footnote: "...her legs. 15 Lively v. Wayfarer Studios LLC et al."
@@ -4233,12 +4231,15 @@ function classifyCitations(rawCitations, sourceText = '') {
       const fnBoundaryM = caseName.match(/^(?:.*[.!?])\s+\d{1,3}\s+([A-Z].+)$/s);
       if (fnBoundaryM) caseName = fnBoundaryM[1].trim();
       // Reject if the result doesn't look like a case name (must contain "v.", "In re", or "Ex parte")
-      if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) continue;
-      const docketNum = dm[2];
-      const court = dm[3] ? dm[3].trim() : '';
+      if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
+
+      const docketNum = (dm[docketNumIdx] || '').trim();
+      if (!docketNum) return;
+      const court = courtIdx != null && dm[courtIdx] ? dm[courtIdx].trim() : '';
       const text = normSpace(caseName + ', Case No. ' + docketNum + (court ? ' ' + court : ''));
-      if (seenNorm.has(text)) continue;
+      if (seenNorm.has(text)) return;
       seenNorm.add(text);
+
       // Determine location.
       // Three signals, in priority order:
       //  1. fnBoundaryM fired → preceding footnote prose bled in → definitely footnote
@@ -4260,6 +4261,24 @@ function classifyCitations(rawCitations, sourceText = '') {
         }
       }
       results.push({ text, lookupText: docketNum, kind: 'docket', docketNumber: docketNum, location, raw: null });
+    };
+
+    // Pattern A: federal style with chapter prefix, e.g. "Case No. 1:25-bk-11282 (MG)"
+    const DOCKET_RE_FED = /([A-Z][^\n;]{3,220}?),\s*(?:[Cc]ase\s+[Nn]o\.?|[Cc]iv(?:il)?\.\s+[Nn]o\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\.?|[Aa]ction\s+[Nn]o\.?)\s*(\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?/g;
+    let dm;
+    while ((dm = DOCKET_RE_FED.exec(sourceText)) !== null) emitDocket(dm, 2, 3);
+
+    // Pattern B: bankruptcy/chapter15 style without reporter/WL, e.g.
+    // "In re Oi S.A., No. 16-11791 (SHL) [D.I. No. 22] ..."
+    // "In re Three Arrows Capital, Ltd., No. 22-10920 (MG) ..."
+    // "In re Muscletech ..., No. 06-10092 (JMP), Adv. No. 06-01147 (JMP) ..."
+    const DOCKET_RE_BANKR = /([A-Z][^\n;]{3,260}?),\s*(?:[Aa]dv\.\s*)?(?:[Cc]ase\s+)?[Nn]o\.?\s*(\d{2}-\d{4,6}|\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?(?:\s*\[[^\]]+\])?(?:\s*,\s*Adv\.\s+[Nn]o\.?\s*(\d{2}-\d{4,6})(\s*\([^)]{2,80}\))?)?/g;
+    while ((dm = DOCKET_RE_BANKR.exec(sourceText)) !== null) {
+      emitDocket(dm, 2, 3);
+      // If a second Adv. No. is present, emit it as an additional docket citation.
+      if (dm[4]) {
+        emitDocket(dm, 4, 5);
+      }
     }
   }
 
