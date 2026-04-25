@@ -3779,6 +3779,15 @@ function findPlaintiffFromContext(c, sourceText) {
 
 function normReporter(s) { return normSpace(s).replace(/[\s.]/g, '').toLowerCase(); }
 
+function stripDocketHeaderBleed(text) {
+  return String(text || '')
+    // Bankruptcy/PACER page headers sometimes bleed into a citation span in PDFs.
+    // Example: "In re 26-10769-mg Doc 9 Filed 04/09/26 Entered 04/09/26 12:35:05 Main Document Pg 26 of 30 BYJU's, 2024 WL 1455586"
+    .replace(/\b\d{2}-\d{5}-[a-z]{2}\b\s+Doc\s+\d+\s+Filed\s+\d{2}\/\d{2}\/\d{2}\s+Entered\s+\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+Main\s+Document\s+Pg\s+\d+\s+of\s+\d+\s*/gi, '')
+    .replace(/\bDoc\s+\d+\s+Filed\s+\d{2}\/\d{2}\/\d{2}\s+Entered\s+\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+Main\s+Document\s+Pg\s+\d+\s+of\s+\d+\s*/gi, '')
+    .trim();
+}
+
 function classifyCitations(rawCitations, sourceText = '') {
   // ── Pass 1: resolve display texts ────────────────────────────────────────
   const candidates = rawCitations.map(c => {
@@ -3792,6 +3801,7 @@ function classifyCitations(rawCitations, sourceText = '') {
       if (span) displayText = span;
     }
     displayText = normSpace(displayText);
+    displayText = stripDocketHeaderBleed(displayText);
     // Strip footnote-boundary markers (\x00FN\x00 / \x00/FN\x00) that may survive into
     // the span text. Null bytes are invisible in the browser but the letters "FN" between
     // them remain visible, producing artefacts like "FNMata v. Avianca".
@@ -4309,6 +4319,19 @@ function inferWestlawJurisdiction(citText) {
 
   // ── Federal district courts → circuit ────────────────────────────────────
   const FED = [
+    [/\b1(?:st)?\s+Cir\.?\b/i,                                            'CTA1'],
+    [/\b2(?:d|nd)?\s+Cir\.?\b/i,                                          'CTA2'],
+    [/\b3(?:d|rd)?\s+Cir\.?\b/i,                                          'CTA3'],
+    [/\b4(?:th)?\s+Cir\.?\b/i,                                            'CTA4'],
+    [/\b5(?:th)?\s+Cir\.?\b/i,                                            'CTA5'],
+    [/\b6(?:th)?\s+Cir\.?\b/i,                                            'CTA6'],
+    [/\b7(?:th)?\s+Cir\.?\b/i,                                            'CTA7'],
+    [/\b8(?:th)?\s+Cir\.?\b/i,                                            'CTA8'],
+    [/\b9(?:th)?\s+Cir\.?\b/i,                                            'CTA9'],
+    [/\b10(?:th)?\s+Cir\.?\b/i,                                           'CTA10'],
+    [/\b11(?:th)?\s+Cir\.?\b/i,                                           'CTA11'],
+    [/\bD\.C\.\s+Cir\.?\b/i,                                            'CTADC'],
+    [/\bFed\.\s+Cir\.?\b/i,                                              'CTAFC'],
     [/\bD\.(?:\s*(?:Me|N\.H|Mass|R\.I|Conn|Vt))\b/i,                'CTA1'],
     [/\b[NSEW]?\.?D\.\s*N\.Y\.\b|S\.D\.N\.Y\.|E\.D\.N\.Y\./i,      'CTA2'],
     [/\b[EWM]\.D\.\s*Pa\.|D\.\s*(?:N\.J|Del)\b/i,                   'CTA3'],
