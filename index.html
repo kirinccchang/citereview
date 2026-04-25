@@ -3788,6 +3788,16 @@ function stripDocketHeaderBleed(text) {
     .trim();
 }
 
+function recoverCleanInReName(text) {
+  const cleaned = stripDocketHeaderBleed(text);
+  const m = cleaned.match(/\bIn\s+re\s+([^,;\n]{2,120})[,\s]*$/i);
+  if (!m) return null;
+  const name = m[1].trim().replace(/[\s,]+$/, '');
+  if (!name) return null;
+  if (/\bDoc\s+\d+\b|\bFiled\s+\d{2}\/\d{2}\/\d{2}\b|\bMain\s+Document\b|\bPg\s+\d+\s+of\s+\d+\b/i.test(name)) return null;
+  return `In re ${name}`;
+}
+
 function classifyCitations(rawCitations, sourceText = '') {
   // ── Pass 1: resolve display texts ────────────────────────────────────────
   const candidates = rawCitations.map(c => {
@@ -3882,8 +3892,7 @@ function classifyCitations(rawCitations, sourceText = '') {
       const lastInRe = allInReMatches[allInReMatches.length - 1];
       const m = lastInRe ? [pre.slice(lastInRe.index)] : null;
       if (m) {
-        let inReName = m[0].trim().replace(/[,\s]+$/, '');
-        inReName = stripDocketHeaderBleed(inReName);
+        let inReName = recoverCleanInReName(m[0].trim().replace(/[,\s]+$/, '')) || '';
         // If the recovered prefix still looks like a PACER/docket header instead of a
         // real case name, discard it rather than corrupting the citation text.
         if (/\bDoc\s+\d+\b|\bFiled\s+\d{2}\/\d{2}\/\d{2}\b|\bMain\s+Document\b|\bPg\s+\d+\s+of\s+\d+\b/i.test(inReName)) {
@@ -3893,7 +3902,7 @@ function classifyCitations(rawCitations, sourceText = '') {
         if (inReName.length > 8 && repPart) {
           // Case A: full "In re [name]" in window — rebuild cleanly
           displayText = normSpace(inReName + ', ' + repPart);
-        } else if (inReName.length <= 8) {
+        } else if (inReName.length <= 8 && /^\d+\s+[A-Z]/.test(displayText)) {
           // Case B: window ends with bare "In re " — prepend to existing displayText
           displayText = normSpace('In re ' + displayText);
         }
