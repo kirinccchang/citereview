@@ -3818,12 +3818,27 @@ function cleanDocketCaseName(text) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // If regex capture starts far before the citation, anchor at the last explicit case introducer.
-  const intro = [...name.matchAll(/\b(In\s+re\s*:?)\b|\b(Ex\s+parte)\b|\bv\.\s/gi)];
-  if (intro.length) {
-    const last = intro[intro.length - 1];
+  // OCR can split company abbreviations like "Dev. Inc." into "De v. Inc.".
+  // Re-join these before looking for a real adversarial "v." separator.
+  name = name.replace(
+    /\b([A-Za-z]{1,4})\s+v\.\s+(Inc|Corp|Co|Ltd|LLC|L\.L\.C\.)\b/g,
+    '$1v. $2'
+  );
+
+  // If regex capture starts far before the citation, anchor at explicit case introducers.
+  // Prefer "In re"/"Ex parte" over "v." so split abbreviations don't truncate names.
+  const inReOrExParte = [...name.matchAll(/\bIn\s+re\s*:?\b|\bEx\s+parte\b/gi)];
+  if (inReOrExParte.length) {
+    const last = inReOrExParte[inReOrExParte.length - 1];
     const start = last?.index ?? 0;
     if (start > 0) name = name.slice(start).trim();
+  } else {
+    const vIntro = [...name.matchAll(/\bv\.\s/gi)];
+    if (vIntro.length) {
+      const last = vIntro[vIntro.length - 1];
+      const start = last?.index ?? 0;
+      if (start > 0) name = name.slice(start).trim();
+    }
   }
 
   // Remove obvious caption/header debris around chapter captions.
