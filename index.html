@@ -4574,6 +4574,80 @@ function parseReporterToken(token) {
   return { volume: parseInt(m[1], 10), reporter: m[2].trim(), page: parseInt(m[3], 10) };
 }
 
+function extractCitedYear(text) {
+  if (!text) return null;
+  const years = [...String(text).matchAll(/\b(18|19|20)\d{2}\b/g)].map(m => parseInt(m[0], 10));
+  return years.length ? years[years.length - 1] : null;
+}
+
+function extractClusterYear(cluster) {
+  const candidates = [
+    cluster?.date_filed,
+    cluster?.dateFiled,
+    cluster?.date_created,
+    cluster?.dateCreated,
+  ].filter(Boolean);
+  for (const d of candidates) {
+    const m = String(d).match(/\b(18|19|20)\d{2}\b/);
+    if (m) return parseInt(m[0], 10);
+  }
+  return null;
+}
+
+function reporterTripletMatches(structured, citationText) {
+  if (!structured || !citationText) return false;
+  const p = parseReporterToken(citationWithoutPincite(citationText));
+  if (!p) return false;
+  return p.volume === structured.volume
+    && p.page === structured.page
+    && normReporter(p.reporter) === normReporter(structured.reporter);
+}
+
+async function validateCaseMetadata(cit, cluster, structured, wlUrl, scholarUrl) {
+  if (!cluster?.id) return null;
+  let detail = null;
+  try {
+    // Pull a minimal cluster record to cross-check reporter triplet + filed year.
+    detail = await fetchCourtListener(`/api/rest/v4/clusters/${cluster.id}/`, {
+      params: { fields: 'id,case_name,citations,date_filed,date_created' },
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch (_) {
+    return null; // Fail open: keep normal verification result if metadata fetch fails.
+  }
+
+  // 1) Reporter/volume/page cross-check against cluster citations when available.
+  if (structured && Array.isArray(detail?.citations) && detail.citations.length > 0) {
+    const ok = detail.citations.some(c => reporterTripletMatches(structured, c));
+    if (!ok) {
+      return {
+        status: 'warning',
+        msg: `Reporter mismatch — cited ${structured.volume} ${structured.reporter} ${structured.page} not listed for this case in CourtListener metadata`,
+        clId: cluster.id,
+        clUrl: safeClUrl(cluster.absolute_url, cit.text),
+        lexisUrl: wlUrl,
+        scholarUrl,
+      };
+    }
+  }
+
+  // 2) Parenthetical year cross-check against cluster filing year.
+  const citedYear = extractCitedYear(cit.text);
+  const clusterYear = extractClusterYear(detail);
+  if (citedYear && clusterYear && citedYear !== clusterYear) {
+    return {
+      status: 'warning',
+      msg: `Year mismatch — citation says ${citedYear}, CourtListener cluster year is ${clusterYear}`,
+      clId: cluster.id,
+      clUrl: safeClUrl(cluster.absolute_url, cit.text),
+      lexisUrl: wlUrl,
+      scholarUrl,
+    };
+  }
+
+  return null;
+}
+
 // ── Verification ──────────────────────────────────────────────────────────────
 async function verifyCitation(cit) {
   if (cit.kind === 'case') {
@@ -4629,6 +4703,8 @@ async function verifyCitation(cit) {
             similarity: sim,
           };
         }
+        const metadataCheck = await validateCaseMetadata(cit, cluster, structured, wlUrl, sUrlV);
+        if (metadataCheck) return metadataCheck;
         // Citation found by volume/reporter/page. If safeClUrl suppressed the link (URL slug
         // doesn't match case name words — rare CL data issue), still mark verified but
         // offer Westlaw as fallback so the user has something to click.
