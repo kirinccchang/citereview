@@ -1919,6 +1919,11 @@
   .analysis-badge.no       { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
   .analysis-badge.uncertain{ background: var(--gray-bg);   color: var(--gray);   border: 1px solid var(--gray-border); }
   .analysis-concerns { margin-top: 5px; color: var(--yellow); font-size: 11px; }
+  .paren-check { margin-top: 6px; font-size: 11px; padding: 5px 8px; border-radius: 4px; border-left: 3px solid; }
+  .paren-check.ok   { color: var(--green, #2d7d46); border-color: var(--green, #2d7d46); background: var(--green-bg, #f0faf3); }
+  .paren-check.fail { color: var(--red); border-color: var(--red-border); background: var(--red-bg); }
+  .paren-check.skip { color: var(--text2); border-color: var(--border); background: var(--bg2); }
+  .paren-check .paren-quoted { font-style: italic; opacity: 0.85; margin-top: 3px; }
   .full-text-section { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 6px; }
   .full-text-toggle { background: none; border: none; color: var(--text2); font-size: 11px; cursor: pointer; padding: 0; }
   .full-text-toggle:hover { color: var(--text1); }
@@ -2700,6 +2705,23 @@
                               </template>
                               <div x-show="cit.analysis.concerns" class="analysis-concerns"
                                 x-text="'⚠ ' + cit.analysis.concerns"></div>
+                              <!-- Parenthetical quote verification result -->
+                              <template x-if="cit.analysis.parentheticalCheck && cit.analysis.parentheticalCheck.verified === true">
+                                <div class="paren-check ok">✓ Parenthetical quote verified verbatim in opinion</div>
+                              </template>
+                              <template x-if="cit.analysis.parentheticalCheck && cit.analysis.parentheticalCheck.verified === false">
+                                <div class="paren-check fail">
+                                  <div>⚠ Parenthetical quote not found verbatim — wording may differ from the actual opinion</div>
+                                  <div class="paren-quoted" x-text="'Cited as: \u201c' + cit.analysis.parentheticalCheck.quote.slice(0,160) + (cit.analysis.parentheticalCheck.quote.length > 160 ? '\u2026' : '') + '\u201d'"></div>
+                                  <div style="opacity:0.7;margin-top:2px">Compare with "Key passage" above for the actual text.</div>
+                                </div>
+                              </template>
+                              <template x-if="cit.analysis.parentheticalCheck && cit.analysis.parentheticalCheck.verified === null">
+                                <div class="paren-check skip">ℹ Parenthetical quote detected — opinion text unavailable to verify verbatim accuracy</div>
+                              </template>
+                              <template x-if="cit.analysis.parentheticalConcern">
+                                <div class="analysis-concerns" x-text="'⚠ Quote concern: ' + cit.analysis.parentheticalConcern"></div>
+                              </template>
                               <template x-if="cit.opinionText">
                                 <div class="full-text-section">
                                   <button class="full-text-toggle"
@@ -3837,9 +3859,18 @@ function classifyCitations(rawCitations, sourceText = '') {
     // Two sub-cases:
     //   A) fullSpanStart points to the reporter ("821 F.2d…") — window contains full "In re [name]"
     //   B) fullSpanStart points to the case name ("Air Crash…") — window ends with just "In re "
+    //
+    // IMPORTANT: Use the LAST "In re" in the window, not the first. When two adjacent "In re"
+    // citations appear (e.g. "In re Symington … See also In re GHR Energy Corp., [span starts]"),
+    // the greedy /\bIn\s+re\b.+$/is match would capture Symington's name as the prefix for GHR,
+    // corrupting GHR's citation into a case-name mismatch error.
     if (!/\bin\s+re\b/i.test(displayText) && sourceText && typeof c.fullSpanStart === 'number') {
       const pre = sourceText.slice(Math.max(0, c.fullSpanStart - 120), c.fullSpanStart);
-      const m = pre.match(/\bIn\s+re\b.+$/is);
+      // Find the LAST "In re" occurrence in the window so we always recover the
+      // immediately-preceding "In re" name, not one from an earlier adjacent citation.
+      const allInReMatches = [...pre.matchAll(/\bIn\s+re\b/gi)];
+      const lastInRe = allInReMatches[allInReMatches.length - 1];
+      const m = lastInRe ? [pre.slice(lastInRe.index)] : null;
       if (m) {
         const inReName = m[0].trim().replace(/[,\s]+$/, '');
         const repPart = displayText.match(/\d+\s+[A-Z].*/)?.[0];
@@ -4059,6 +4090,30 @@ function classifyCitations(rawCitations, sourceText = '') {
 
     const cleanText = stripProse(extPrefix + displayText).replace(/[,;]\s*$/, '');
 
+    // ── Extract parenthetical quoted text ────────────────────────────────────
+    // After the eyecite span, look for an immediately-following parenthetical that
+    // contains a verbatim quoted string — e.g. ("The irreparable harm here is…").
+    // These are claims the attorney makes about what the opinion says word-for-word.
+    // We store them so _analyzeCitation can later check them against the full opinion.
+    //
+    // Pattern: optional whitespace → "(" → optional prose signal → opening quote →
+    // quoted content → closing quote → optional continuation → ")"
+    // Handles straight quotes " " and curly quotes \u201c\u201d.
+    let parentheticalQuote = null;
+    if (sourceText && typeof c.fullSpanEnd === 'number') {
+      // Allow up to 20 chars of separator (period, space, newline) between span end and paren.
+      const afterSpan = sourceText.slice(c.fullSpanEnd, c.fullSpanEnd + 520);
+      const parenM = afterSpan.match(/^[\s.,;]*\(([^)]{10,500})\)/);
+      if (parenM) {
+        const inner = parenM[1];
+        // Extract the first quoted segment inside the parenthetical.
+        const quotedM = inner.match(/["""\u201c\u201d]([^"""\u201c\u201d]{10,400})["""\u201c\u201d]/);
+        if (quotedM) {
+          parentheticalQuote = quotedM[1].trim();
+        }
+      }
+    }
+
     // ── Detect paragraph vs footnote location ────────────────────────────────
     // DOCX path: look for FN_OPEN/FN_CLOSE markers inserted by parseDocx().
     // Plain-text path: heuristic — line starts with footnote number/symbol.
@@ -4077,14 +4132,41 @@ function classifyCitations(rawCitations, sourceText = '') {
       }
     }
 
-    results.push({ text: cleanText, lookupText, kind, liiUrl, govInfoUrl, fedRegUrl, locQuery, statuteLabel, isStateStatute, location, raw: c });
+    results.push({ text: cleanText, lookupText, kind, liiUrl, govInfoUrl, fedRegUrl, locQuery, statuteLabel, isStateStatute, location, parentheticalQuote, raw: c });
   }
 
   // ── Resolve Id./supra to preceding citable (case or journal) ────────────────
+  // Also cross-check explicit reporter volumes embedded in short-form citations
+  // (e.g. "503 B.R. at 589"). If the volume doesn't match the resolved base
+  // citation, scan backward for the correct base; otherwise flag a mismatch.
+  // This catches the class of errors where eyecite's antecedentGuess resolves
+  // a short form to the wrong preceding citation (e.g. resolving "503 B.R. at 589"
+  // to Bear Stearns 389 B.R. instead of the correct Soundview 503 B.R. base cite).
   let lastCitable = null;
-  for (const r of results) {
-    if (r.kind === 'case' || r.kind === 'journal') lastCitable = r.text;
-    if (r.kind === 'id' && lastCitable) r.resolvedFrom = lastCitable;
+  for (let ri = 0; ri < results.length; ri++) {
+    const r = results[ri];
+    if (r.kind === 'case' || r.kind === 'journal') { lastCitable = r.text; continue; }
+    if (r.kind !== 'id' || !lastCitable) continue;
+    r.resolvedFrom = lastCitable;
+    // Check if the id. citation embeds an explicit reporter volume: "VOL REP at PAGE"
+    const shortVolM = r.text.match(/\b(\d+)\s+([A-Z][\w.]+(?:\s+[A-Z][\w.]+)*)\s+at\s+\d+/);
+    if (shortVolM) {
+      const shortVol = shortVolM[1];
+      const baseVolM = lastCitable.match(/\b(\d+)\s+/);
+      if (baseVolM && baseVolM[1] !== shortVol) {
+        // Volume mismatch — search backward for a case citation with matching volume.
+        const matchedBase = results.slice(0, ri).reverse()
+          .find(other => (other.kind === 'case' || other.kind === 'journal')
+            && other.text.match(/\b(\d+)\s+/)?.[1] === shortVol);
+        if (matchedBase) {
+          r.resolvedFrom = matchedBase.text;
+        } else {
+          // No matching base found — flag it so the UI can warn the user.
+          r.volMismatch = true;
+          r.volMismatchDetail = `short-form volume ${shortVol} ≠ resolved base volume ${baseVolM[1]}`;
+        }
+      }
+    }
   }
 
   // ── Pass 4: docket citations (not parseable by eyecite — no reporter) ────────
@@ -4191,9 +4273,14 @@ function caseNameMatches(citedText, foundCaseName) {
 // Parses the court parenthetical from a citation and returns the Westlaw
 // jurisdiction code (e.g. "CO-CS", "CTA2"). Falls back to "ALLCASES".
 function inferWestlawJurisdiction(citText) {
-  // Grab the last parenthetical — it usually contains court + year.
-  const parens = [...citText.matchAll(/\(([^)]+)\)/g)];
-  const court = parens.length ? parens[parens.length - 1][1] : citText;
+  // For double-parenthetical citations like "Hausler, 770 F.3d 207 (2d Cir. 2014)
+  // (blocked assets…)", the last parenthetical is explanatory — not the court/year.
+  // Prefer the first parenthetical that looks like a court+year over the last one.
+  const parens = [...citText.matchAll(/\(([^)]+)\)/g)].map(m => m[1]);
+  const COURT_YEAR_RE = /\b\d{4}\b.*\b(?:Cir\.|Bankr\.|Dist\.|App\.|Ct\.|scotus|S\.D\.|E\.D\.|N\.D\.|W\.D\.|C\.D\.|D\.C\.|D\.\s*[A-Z])/i;
+  const court = parens.find(p => COURT_YEAR_RE.test(p) || /\b\d{4}\b/.test(p) && /\bCir\b|\bD\.\s*[A-Z]/.test(p))
+    ?? parens[parens.length - 1]
+    ?? citText;
 
   // ── State courts ─────────────────────────────────────────────────────────
   // Map LEXIS state abbreviations → Westlaw STATE-CS code.
@@ -4461,10 +4548,15 @@ async function verifyCitation(cit) {
       //
       // Steps: strip pincites → strip court parenthetical → strip trailing punct → match last
       // "VOLUME REPORTER PAGE" pattern in the cleaned string.
-      const _forLookup = citationWithoutPincite(cit.text)
-        .replace(/\s*\([^)]*\)\s*$/, '')   // "(N.D. Ala. 2025)" etc.
-        .replace(/[.,]\s*$/, '')            // trailing period or comma
-        .trim();
+      // Strip pincites, then strip ALL terminal parentheticals until the string ends
+      // with a digit. A single .replace is insufficient for double-parenthetical
+      // citations like "Hausler v. JPMorgan, 770 F.3d 207, 212 (2d Cir. 2014)
+      // (blocked assets…)" where the first strip removes the explanatory paren but
+      // leaves "(2d Cir. 2014)" still attached, causing the volume/reporter/page
+      // regex to fail (it expects the string to end in a digit).
+      let _forLookup = citationWithoutPincite(cit.text).trim();
+      { let _prev; do { _prev = _forLookup; _forLookup = _forLookup.replace(/\s*\([^)]*\)\s*$/, '').trim(); } while (_forLookup !== _prev && !/\d$/.test(_forLookup)); }
+      _forLookup = _forLookup.replace(/[.,]\s*$/, '').trim(); // trailing period or comma
       const _repM = _forLookup.match(/\b(\d+)\s+([A-Z][\w.\s]+?)\s+(\d+)\s*$/);
       const structured = _repM
         ? { volume: parseInt(_repM[1], 10), reporter: _repM[2].trim(), page: parseInt(_repM[3], 10) }
@@ -4703,6 +4795,12 @@ async function verifyCitation(cit) {
   }
 
   if (cit.kind === 'id') {
+    if (cit.volMismatch) {
+      return {
+        status: 'warning',
+        msg: `Id./supra — volume mismatch: ${cit.volMismatchDetail}. Short-form volume does not match resolved base citation — check reporter, volume, and year.`,
+      };
+    }
     return { status: 'info', msg: 'Id./supra — inherits from preceding citation' };
   }
 
@@ -5296,6 +5394,26 @@ function app() {
 
         // Use full selected opinion text for legal reasoning fidelity.
         const opinionSnippet = cleanOpinionText || null;
+
+        // ── Client-side parenthetical quote verification ──────────────────────
+        // Check whether the quoted text the attorney placed in the citation parenthetical
+        // (extracted in classifyCitations) appears verbatim in the actual opinion text.
+        // This is a definitive client-side check — no AI involved. If the quote is
+        // present, it's confirmed. If absent and opinion text is available, it's an error.
+        let parentheticalCheck = null; // null = no quote to check
+        if (cit.parentheticalQuote && cleanOpinionText) {
+          const found = verifyVerbatimPassage(cit.parentheticalQuote, cleanOpinionText);
+          parentheticalCheck = {
+            quote: cit.parentheticalQuote,
+            verified: !!found,
+            // Not found is only a definitive error when we have the full opinion text.
+            // When opinion is unavailable the check is simply skipped.
+          };
+        } else if (cit.parentheticalQuote && !cleanOpinionText) {
+          // Quote exists but we can't verify — mark as pending.
+          parentheticalCheck = { quote: cit.parentheticalQuote, verified: null };
+        }
+
         const prompt = [
           `You are checking a citation in a legal memo. Follow these steps in order:`,
           ``,
@@ -5318,8 +5436,11 @@ function app() {
             ? `STEP 4 — Copy the single most relevant sentence or short passage from the opinion text above that best supports or refutes the memo's claim. Copy it CHARACTER-FOR-CHARACTER with no changes, no paraphrasing, no ellipsis substitution. If no passage is relevant, use null.`
             : `STEP 4 — keyPassage: null (no opinion text provided)`,
           ``,
+          cit.parentheticalQuote && opinionSnippet
+            ? `STEP 4.5 — The citation in the memo includes this parenthetical quotation attributed to the opinion:\n"${cit.parentheticalQuote}"\nDoes this quoted text appear verbatim in the opinion text above? If the words or phrasing differ materially, add a "parenthetical_concern" key to your JSON output explaining the discrepancy. If it appears correctly, set "parenthetical_concern": null.`
+            : '',
           `STEP 5 — Output JSON only (no markdown, no explanation outside the JSON):`,
-          `{"supported":"yes|partial|no|uncertain","memo_issue":"what the memo claims this case stands for","case_holding":"what the case actually holds","domain_match":true|false,"summary":"1-2 sentence verdict explaining your reasoning","concerns":"cite-structural issues only — e.g. wrong reporter, citing a dissent as majority, non-binding court — or null. Do NOT speculate about opinion authorship or majority/dissent attribution unless explicitly stated in the provided text.","keyPassage":"verbatim copied sentence from the opinion above, or null"}`,
+          `{"supported":"yes|partial|no|uncertain","memo_issue":"what the memo claims this case stands for","case_holding":"what the case actually holds","domain_match":true|false,"summary":"1-2 sentence verdict explaining your reasoning","concerns":"cite-structural issues only — e.g. wrong reporter, citing a dissent as majority, non-binding court — or null. Do NOT speculate about opinion authorship or majority/dissent attribution unless explicitly stated in the provided text.","keyPassage":"verbatim copied sentence from the opinion above, or null","parenthetical_concern":"description of parenthetical quote discrepancy, or null"}`,
         ].join('\n');
         await this._throttleAIInputByTokens(prompt);
         let text = '';
@@ -5379,6 +5500,8 @@ function app() {
               caseHolding: p.case_holding || null,
               sourceType: sanitizeOpinionSourceType(cit.opinionType) || null,
               passageOffset: passageOffset >= 0 ? passageOffset : null,
+              parentheticalCheck,
+              parentheticalConcern: p.parenthetical_concern || null,
             };
           }
         }
@@ -5394,6 +5517,8 @@ function app() {
             : fallbackOpinionPassage(cleanOpinionText, 500),
           sourceType: sanitizeOpinionSourceType(cit.opinionType) || null,
           passageOffset: null,
+          parentheticalCheck,
+          parentheticalConcern: null,
         };
       } catch (e) {
         return { mode: 'ai', status: 'error', summary: e.message };
@@ -5978,7 +6103,7 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
       const rawCitations = await getCitationsAsync(text);
       await this.yieldToUI();
       const citations = classifyCitations(rawCitations, text)
-        .map((c, i) => ({ ...c, id: i, result: null, checking: false, selected: true, resolvedFrom: c.resolvedFrom || null, opinionText: null, analysis: null }));
+        .map((c, i) => ({ ...c, id: i, result: null, checking: false, selected: true, resolvedFrom: c.resolvedFrom || null, volMismatch: c.volMismatch || false, volMismatchDetail: c.volMismatchDetail || null, parentheticalQuote: c.parentheticalQuote || null, opinionText: null, analysis: null }));
       await this.yieldToUI();
 
       for (const pat of STATUTE_PATTERNS) {
