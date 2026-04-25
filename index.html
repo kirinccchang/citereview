@@ -4422,7 +4422,8 @@ function wlCaseSearchUrl(query, jurisdiction) {
 // The anchor group captures what follows the pincite(s): opening paren, period/comma/semicolon,
 // or end of string. This ensures a trailing "." doesn't block the match.
 function citationWithoutPincite(citText) {
-  return citText.replace(/(\d+)(?:,\s*\d+(?:[-\u2013]\d+)?)+(\s*(?:[.(,;]|$))/g, '$1$2').trim();
+  const raw = String(citText || '');
+  return raw.replace(/(\d+)(?:,\s*\d+(?:[-\u2013]\d+)?)+(\s*(?:[.(,;]|$))/g, '$1$2').trim();
 }
 
 // Google Scholar case law search URL.
@@ -4619,7 +4620,22 @@ function extractClusterYear(cluster) {
 
 function reporterTripletMatches(structured, citationText) {
   if (!structured || !citationText) return false;
-  const p = parseReporterToken(citationWithoutPincite(citationText));
+  // CourtListener cluster citations can be either strings ("543 B.R. 571") or
+  // structured objects ({ volume, reporter, page, ... }). Handle both.
+  let p = null;
+  if (typeof citationText === 'string') {
+    p = parseReporterToken(citationWithoutPincite(citationText));
+  } else if (typeof citationText === 'object') {
+    const vol = parseInt(citationText.volume ?? citationText.vol ?? citationText.cite_volume, 10);
+    const rep = String(citationText.reporter ?? citationText.cite_reporter ?? '').trim();
+    const page = parseInt(citationText.page ?? citationText.cite_page, 10);
+    if (Number.isFinite(vol) && rep && Number.isFinite(page)) {
+      p = { volume: vol, reporter: rep, page };
+    } else {
+      const candidateText = citationText.citation || citationText.cite || citationText.text || '';
+      p = parseReporterToken(citationWithoutPincite(candidateText));
+    }
+  }
   if (!p) return false;
   return p.volume === structured.volume
     && p.page === structured.page
