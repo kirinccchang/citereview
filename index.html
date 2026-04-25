@@ -3812,6 +3812,50 @@ function stripDocketHeaderBleed(text) {
     .trim();
 }
 
+function cleanDocketCaseName(text) {
+  let name = stripDocketHeaderBleed(text)
+    .replace(/[\u25cb\u2022\u00b7]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // If regex capture starts far before the citation, anchor at the last explicit case introducer.
+  const intro = [...name.matchAll(/\b(In\s+re\s*:?)\b|\b(Ex\s+parte)\b|\bv\.\s/gi)];
+  if (intro.length) {
+    const last = intro[intro.length - 1];
+    const start = last?.index ?? 0;
+    if (start > 0) name = name.slice(start).trim();
+  }
+
+  // Remove obvious caption/header debris around chapter captions.
+  name = name
+    .replace(/\bDebtors?\b[^A-Za-z0-9]{0,8}\b(?:in\b[^A-Za-z0-9]{0,8})?\bForeign\b[^A-Za-z0-9]{0,8}\bProceeding\s*s?\b.*$/i, '')
+    .replace(/\bChapter\s+\d+\b.*$/i, '')
+    .replace(/\bUNITED\s+STATES\s+BANKRUPTCY\s+COURT\b.*$/i, '')
+    .replace(/\bCounsel\s+to\s+the\s+Authorized\s+Foreign\s+Representatives\b.*$/i, '')
+    .replace(/\bFacsimile\s*:\s*\(?\d{3}\)?\s*\d{3}\s*[-]\s*\d{4}\b.*$/i, '')
+    .trim();
+
+  // OCR/paste artefacts that can leak after a valid case name.
+  name = name
+    .replace(/\s*(?:and|or|et\s+al\.?|\u548c)\s*$/i, '')
+    .replace(/[.,]\s*\d{1,3}\s*$/, '')
+    .replace(/[\s,.;:]+$/, '')
+    .trim();
+
+  // Normalize "In re:" to "In re" for stable dedupe/rendering.
+  name = name.replace(/^In\s+re\s*:\s*/i, 'In re ');
+
+  return name;
+}
+
+function isLikelyCaptionCaseName(text) {
+  const t = normSpace(String(text || ''));
+  if (!t) return false;
+  return /\bDebtors?\b[^A-Za-z0-9]{0,10}\b(?:in\b[^A-Za-z0-9]{0,10})?\bForeign\b[^A-Za-z0-9]{0,10}\bProceeding\s*s?\b/i.test(t)
+    || /\bUNITED\s+STATES\s+BANKRUPTCY\s+COURT\b/i.test(t)
+    || /\bCounsel\s+to\s+the\s+Authorized\s+Foreign\s+Representatives\b/i.test(t);
+}
+
 function recoverCleanInReName(text) {
   const cleaned = stripDocketHeaderBleed(text);
   const m = cleaned.match(/\bIn\s+re\s+([^,;\n]{2,120})[,\s]*$/i);
@@ -4229,13 +4273,15 @@ function classifyCitations(rawCitations, sourceText = '') {
       .replace(/\s*[-–—]\s*/g, '-');
 
     const emitDocket = (dm, docketNumIdx, courtIdx = null) => {
-      let caseName = dm[1].trim().replace(/[,\s]+$/, '');
-      caseName = stripDocketHeaderBleed(caseName);
+      const rawCaseName = dm?.[1] || '';
+      if (isLikelyCaptionCaseName(rawCaseName)) return;
+      let caseName = cleanDocketCaseName(rawCaseName.trim().replace(/[,\s]+$/, ''));
       // PDF.js sometimes runs footnotes together without newlines, so the regex captures
       // prose from the preceding footnote: "...her legs. 15 Lively v. Wayfarer Studios LLC et al."
       // Strip everything up to and including the last ". <footnote_number> " boundary.
       const fnBoundaryM = caseName.match(/^(?:.*[.!?])\s+\d{1,3}\s+([A-Z].+)$/s);
       if (fnBoundaryM) caseName = fnBoundaryM[1].trim();
+      if (/\bDebtors?\b.*\bForeign\b.*\bProceeding\b/i.test(caseName)) return;
       // Reject if the result doesn't look like a case name (must contain "v.", "In re", or "Ex parte")
       if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
 
@@ -4303,8 +4349,10 @@ function extractDocketOnlyCitations(sourceText = '') {
   const out = [];
   const seen = new Set();
   const emit = (dm, docketNumIdx, courtIdx = null) => {
-    let caseName = (dm?.[1] || '').trim().replace(/[\s,]+$/, '');
-    caseName = stripDocketHeaderBleed(caseName);
+    const rawCaseName = dm?.[1] || '';
+    if (isLikelyCaptionCaseName(rawCaseName)) return;
+    let caseName = cleanDocketCaseName(rawCaseName.trim().replace(/[\s,]+$/, ''));
+    if (/\bDebtors?\b.*\bForeign\b.*\bProceeding\b/i.test(caseName)) return;
     if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
 
     const docketNum = normalizeDocketNumber(dm?.[docketNumIdx] || '');
