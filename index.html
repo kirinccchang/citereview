@@ -3806,8 +3806,9 @@ function stripDocketHeaderBleed(text) {
   return String(text || '')
     // Bankruptcy/PACER page headers sometimes bleed into a citation span in PDFs.
     // Example: "In re 26-10769-mg Doc 9 Filed 04/09/26 Entered 04/09/26 12:35:05 Main Document Pg 26 of 30 BYJU's, 2024 WL 1455586"
-    .replace(/\b\d{2}-\d{5}-[a-z]{2}\b\s+Doc\s+\d+\s+Filed\s+\d{2}\/\d{2}\/\d{2}\s+Entered\s+\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+Main\s+Document\s+Pg\s+\d+\s+of\s+\d+\s*/gi, '')
-    .replace(/\bDoc\s+\d+\s+Filed\s+\d{2}\/\d{2}\/\d{2}\s+Entered\s+\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+Main\s+Document\s+Pg\s+\d+\s+of\s+\d+\s*/gi, '')
+    // Accept both 5/6-digit case numbers and OCR-spaced punctuation/hyphens.
+    .replace(/\b\d{2}\s*-\s*\d{5,6}\s*-\s*[a-z]{2}\b\s+Doc\s+\d+\s+Filed\s+\d{2}\/\d{2}\/\d{2}(?:\s+Entered\s+\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})?\s+Main\s+Document\s+Pg\s+\d+\s+of\s+\d+\s*/gi, '')
+    .replace(/\bDoc\s+\d+\s+Filed\s+\d{2}\/\d{2}\/\d{2}(?:\s+Entered\s+\d{2}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})?\s+Main\s+Document\s+Pg\s+\d+\s+of\s+\d+\s*/gi, '')
     .trim();
 }
 
@@ -4229,6 +4230,7 @@ function classifyCitations(rawCitations, sourceText = '') {
 
     const emitDocket = (dm, docketNumIdx, courtIdx = null) => {
       let caseName = dm[1].trim().replace(/[,\s]+$/, '');
+      caseName = stripDocketHeaderBleed(caseName);
       // PDF.js sometimes runs footnotes together without newlines, so the regex captures
       // prose from the preceding footnote: "...her legs. 15 Lively v. Wayfarer Studios LLC et al."
       // Strip everything up to and including the last ". <footnote_number> " boundary.
@@ -4302,6 +4304,7 @@ function extractDocketOnlyCitations(sourceText = '') {
   const seen = new Set();
   const emit = (dm, docketNumIdx, courtIdx = null) => {
     let caseName = (dm?.[1] || '').trim().replace(/[\s,]+$/, '');
+    caseName = stripDocketHeaderBleed(caseName);
     if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
 
     const docketNum = normalizeDocketNumber(dm?.[docketNumIdx] || '');
