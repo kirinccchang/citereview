@@ -4223,6 +4223,10 @@ function classifyCitations(rawCitations, sourceText = '') {
   // Detects "CaseName, Case No. X:YY-cv-ZZZZ (Court Date)" patterns directly in
   // the source text and emits docket-kind entries for RECAP verification.
   if (sourceText) {
+    const normalizeDocketNumber = s => normSpace(String(s || ''))
+      .replace(/\s*:\s*/g, ':')
+      .replace(/\s*[-–—]\s*/g, '-');
+
     const emitDocket = (dm, docketNumIdx, courtIdx = null) => {
       let caseName = dm[1].trim().replace(/[,\s]+$/, '');
       // PDF.js sometimes runs footnotes together without newlines, so the regex captures
@@ -4233,7 +4237,7 @@ function classifyCitations(rawCitations, sourceText = '') {
       // Reject if the result doesn't look like a case name (must contain "v.", "In re", or "Ex parte")
       if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
 
-      const docketNum = (dm[docketNumIdx] || '').trim();
+      const docketNum = normalizeDocketNumber(dm[docketNumIdx] || '');
       if (!docketNum) return;
       const court = courtIdx != null && dm[courtIdx] ? dm[courtIdx].trim() : '';
       const text = normSpace(caseName + ', Case No. ' + docketNum + (court ? ' ' + court : ''));
@@ -4264,7 +4268,7 @@ function classifyCitations(rawCitations, sourceText = '') {
     };
 
     // Pattern A: federal style with chapter prefix, e.g. "Case No. 1:25-bk-11282 (MG)"
-    const DOCKET_RE_FED = /([A-Z][^\n;]{3,220}?)(?:,\s*|\s+)(?:[Cc]ase\s+[Nn]o\.?|[Cc]iv(?:il)?\.\s+[Nn]o\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\.?|[Aa]ction\s+[Nn]o\.?)\s*(\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?/g;
+    const DOCKET_RE_FED = /([A-Z][^\n;]{3,220}?)(?:,\s*|\s+)(?:[Cc]ase\s+[Nn]o\s*\.?|[Cc]iv(?:il)?\.\s+[Nn]o\s*\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\s*\.?|[Aa]ction\s+[Nn]o\s*\.?)\s*(\d{1,2}\s*:\s*\d{2,}\s*[-–—]\s*(?:bk|cv|cr|civ|crim|mc|misc|mj)\s*[-–—]\s*\d+(?:\s*[-–—]\s*\w+)?)(\s*\([^)]{2,80}\))?/g;
     let dm;
     while ((dm = DOCKET_RE_FED.exec(sourceText)) !== null) emitDocket(dm, 2, 3);
 
@@ -4272,7 +4276,7 @@ function classifyCitations(rawCitations, sourceText = '') {
     // "In re Oi S.A., No. 16-11791 (SHL) [D.I. No. 22] ..."
     // "In re Three Arrows Capital, Ltd., No. 22-10920 (MG) ..."
     // "In re Muscletech ..., No. 06-10092 (JMP), Adv. No. 06-01147 (JMP) ..."
-    const DOCKET_RE_BANKR = /([A-Z][^\n;]{3,260}?)(?:,\s*|\s+)(?:[Aa]dv\.\s*)?(?:[Cc]ase\s+)?[Nn]o\.?\s*(\d{2}-\d{4,6}|\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?(?:\s*\[[^\]]+\])?(?:\s*,?\s*Adv\.\s+[Nn]o\.?\s*(\d{2}-\d{4,6})(\s*\([^)]{2,80}\))?)?/g;
+    const DOCKET_RE_BANKR = /([A-Z][^\n;]{3,260}?)(?:,\s*|\s+)(?:[Aa]dv\s*\.?\s*)?(?:[Cc]ase\s+)?[Nn]o\s*\.?\s*(\d{2}\s*[-–—]\s*\d{4,6}|\d{1,2}\s*:\s*\d{2,}\s*[-–—]\s*(?:bk|cv|cr|civ|crim|mc|misc|mj)\s*[-–—]\s*\d+(?:\s*[-–—]\s*\w+)?)(\s*\([^)]{2,80}\))?(?:\s*\[[^\]]+\])?(?:\s*,?\s*Adv\s*\.?\s+[Nn]o\s*\.?\s*(\d{2}\s*[-–—]\s*\d{4,6})(\s*\([^)]{2,80}\))?)?/g;
     while ((dm = DOCKET_RE_BANKR.exec(sourceText)) !== null) {
       emitDocket(dm, 2, 3);
       // If a second Adv. No. is present, emit it as an additional docket citation.
@@ -4290,6 +4294,9 @@ function classifyCitations(rawCitations, sourceText = '') {
 function extractDocketOnlyCitations(sourceText = '') {
   const text = String(sourceText || '');
   if (!text) return [];
+  const normalizeDocketNumber = s => normSpace(String(s || ''))
+    .replace(/\s*:\s*/g, ':')
+    .replace(/\s*[-–—]\s*/g, '-');
 
   const out = [];
   const seen = new Set();
@@ -4297,7 +4304,7 @@ function extractDocketOnlyCitations(sourceText = '') {
     let caseName = (dm?.[1] || '').trim().replace(/[\s,]+$/, '');
     if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
 
-    const docketNum = (dm?.[docketNumIdx] || '').trim();
+    const docketNum = normalizeDocketNumber(dm?.[docketNumIdx] || '');
     if (!docketNum) return;
     const court = courtIdx != null && dm?.[courtIdx] ? dm[courtIdx].trim() : '';
     const docketText = normSpace(caseName + ', Case No. ' + docketNum + (court ? ' ' + court : ''));
@@ -4306,8 +4313,8 @@ function extractDocketOnlyCitations(sourceText = '') {
     out.push({ text: docketText, lookupText: docketNum, kind: 'docket', docketNumber: docketNum, location: 'paragraph', raw: null });
   };
 
-  const DOCKET_RE_FED = /([A-Z][^\n;]{3,220}?)(?:,\s*|\s+)(?:[Cc]ase\s+[Nn]o\.?|[Cc]iv(?:il)?\.\s+[Nn]o\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\.?|[Aa]ction\s+[Nn]o\.?)\s*(\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?/g;
-  const DOCKET_RE_BANKR = /([A-Z][^\n;]{3,260}?)(?:,\s*|\s+)(?:[Aa]dv\.\s*)?(?:[Cc]ase\s+)?[Nn]o\.?\s*(\d{2}-\d{4,6}|\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?(?:\s*\[[^\]]+\])?(?:\s*,?\s*Adv\.\s+[Nn]o\.?\s*(\d{2}-\d{4,6})(\s*\([^)]{2,80}\))?)?/g;
+  const DOCKET_RE_FED = /([A-Z][^\n;]{3,220}?)(?:,\s*|\s+)(?:[Cc]ase\s+[Nn]o\s*\.?|[Cc]iv(?:il)?\.\s+[Nn]o\s*\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\s*\.?|[Aa]ction\s+[Nn]o\s*\.?)\s*(\d{1,2}\s*:\s*\d{2,}\s*[-–—]\s*(?:bk|cv|cr|civ|crim|mc|misc|mj)\s*[-–—]\s*\d+(?:\s*[-–—]\s*\w+)?)(\s*\([^)]{2,80}\))?/g;
+  const DOCKET_RE_BANKR = /([A-Z][^\n;]{3,260}?)(?:,\s*|\s+)(?:[Aa]dv\s*\.?\s*)?(?:[Cc]ase\s+)?[Nn]o\s*\.?\s*(\d{2}\s*[-–—]\s*\d{4,6}|\d{1,2}\s*:\s*\d{2,}\s*[-–—]\s*(?:bk|cv|cr|civ|crim|mc|misc|mj)\s*[-–—]\s*\d+(?:\s*[-–—]\s*\w+)?)(\s*\([^)]{2,80}\))?(?:\s*\[[^\]]+\])?(?:\s*,?\s*Adv\s*\.?\s+[Nn]o\s*\.?\s*(\d{2}\s*[-–—]\s*\d{4,6})(\s*\([^)]{2,80}\))?)?/g;
 
   let dm;
   while ((dm = DOCKET_RE_FED.exec(text)) !== null) emit(dm, 2, 3);
