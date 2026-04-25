@@ -4285,6 +4285,40 @@ function classifyCitations(rawCitations, sourceText = '') {
   return results;
 }
 
+// Extra guardrail for docket-only case citations in plain pasted text.
+// This runs independently of eyecite output and is merged by buildCitationsFromText.
+function extractDocketOnlyCitations(sourceText = '') {
+  const text = String(sourceText || '');
+  if (!text) return [];
+
+  const out = [];
+  const seen = new Set();
+  const emit = (dm, docketNumIdx, courtIdx = null) => {
+    let caseName = (dm?.[1] || '').trim().replace(/[\s,]+$/, '');
+    if (!/\bv\.\s|\bIn\s+re\b|\bEx\s+parte\b/i.test(caseName)) return;
+
+    const docketNum = (dm?.[docketNumIdx] || '').trim();
+    if (!docketNum) return;
+    const court = courtIdx != null && dm?.[courtIdx] ? dm[courtIdx].trim() : '';
+    const docketText = normSpace(caseName + ', Case No. ' + docketNum + (court ? ' ' + court : ''));
+    if (seen.has(docketText)) return;
+    seen.add(docketText);
+    out.push({ text: docketText, lookupText: docketNum, kind: 'docket', docketNumber: docketNum, location: 'paragraph', raw: null });
+  };
+
+  const DOCKET_RE_FED = /([A-Z][^\n;]{3,220}?)(?:,\s*|\s+)(?:[Cc]ase\s+[Nn]o\.?|[Cc]iv(?:il)?\.\s+[Nn]o\.?|[Cc]rim(?:inal)?\.\s+[Nn]o\.?|[Aa]ction\s+[Nn]o\.?)\s*(\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?/g;
+  const DOCKET_RE_BANKR = /([A-Z][^\n;]{3,260}?)(?:,\s*|\s+)(?:[Aa]dv\.\s*)?(?:[Cc]ase\s+)?[Nn]o\.?\s*(\d{2}-\d{4,6}|\d{1,2}:\d{2,}-(?:bk|cv|cr|civ|crim|mc|misc|mj)-\d+(?:-\w+)?)(\s*\([^)]{2,80}\))?(?:\s*\[[^\]]+\])?(?:\s*,?\s*Adv\.\s+[Nn]o\.?\s*(\d{2}-\d{4,6})(\s*\([^)]{2,80}\))?)?/g;
+
+  let dm;
+  while ((dm = DOCKET_RE_FED.exec(text)) !== null) emit(dm, 2, 3);
+  while ((dm = DOCKET_RE_BANKR.exec(text)) !== null) {
+    emit(dm, 2, 3);
+    if (dm[4]) emit(dm, 4, 5);
+  }
+
+  return out;
+}
+
 // ── Case name similarity matching ─────────────────────────────────────────────
 // Words too generic to confirm a case match on their own.
 const CASE_NAME_STOPWORDS = new Set([
@@ -6283,6 +6317,29 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
       await this.yieldToUI();
       const citations = classifyCitations(rawCitations, text)
         .map((c, i) => ({ ...c, id: i, result: null, checking: false, selected: true, resolvedFrom: c.resolvedFrom || null, volMismatch: c.volMismatch || false, volMismatchDetail: c.volMismatchDetail || null, parentheticalQuote: c.parentheticalQuote || null, opinionText: null, analysis: null }));
+      await this.yieldToUI();
+
+      // Safety net: docket-only references in paste/doc text should still surface
+      // even if upstream parsing paths return sparse/no citations.
+      const mergedByText = new Set(citations.map(c => c.text));
+      const docketOnly = extractDocketOnlyCitations(text);
+      for (const d of docketOnly) {
+        if (mergedByText.has(d.text)) continue;
+        mergedByText.add(d.text);
+        citations.push({
+          ...d,
+          id: citations.length,
+          result: null,
+          checking: false,
+          selected: true,
+          resolvedFrom: null,
+          volMismatch: false,
+          volMismatchDetail: null,
+          parentheticalQuote: null,
+          opinionText: null,
+          analysis: null,
+        });
+      }
       await this.yieldToUI();
 
       for (const pat of STATUTE_PATTERNS) {
