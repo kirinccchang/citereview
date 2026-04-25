@@ -3915,6 +3915,7 @@ function classifyCitations(rawCitations, sourceText = '') {
       const lastInRe = allInReMatches[allInReMatches.length - 1];
       const m = lastInRe ? [pre.slice(lastInRe.index)] : null;
       if (m) {
+        const isBareInRePrefix = /^\s*In\s+re\s*$/i.test(m[0]);
         let inReName = recoverCleanInReName(m[0].trim().replace(/[,\s]+$/, '')) || '';
         // If the recovered prefix still looks like a PACER/docket header instead of a
         // real case name, discard it rather than corrupting the citation text.
@@ -3925,8 +3926,9 @@ function classifyCitations(rawCitations, sourceText = '') {
         if (inReName.length > 8 && repPart) {
           // Case A: full "In re [name]" in window — rebuild cleanly
           displayText = normSpace(inReName + ', ' + repPart);
-        } else if (inReName.length <= 8 && /^\d+\s+[A-Z]/.test(displayText)) {
-          // Case B: window ends with bare "In re " — prepend to existing displayText
+        } else if (isBareInRePrefix) {
+          // Case B: source window ends with bare "In re " right before the span.
+          // Restore the missing prefix even when the span starts at the case name.
           displayText = normSpace('In re ' + displayText);
         }
       }
