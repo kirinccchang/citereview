@@ -3882,7 +3882,13 @@ function classifyCitations(rawCitations, sourceText = '') {
       const lastInRe = allInReMatches[allInReMatches.length - 1];
       const m = lastInRe ? [pre.slice(lastInRe.index)] : null;
       if (m) {
-        const inReName = m[0].trim().replace(/[,\s]+$/, '');
+        let inReName = m[0].trim().replace(/[,\s]+$/, '');
+        inReName = stripDocketHeaderBleed(inReName);
+        // If the recovered prefix still looks like a PACER/docket header instead of a
+        // real case name, discard it rather than corrupting the citation text.
+        if (/\bDoc\s+\d+\b|\bFiled\s+\d{2}\/\d{2}\/\d{2}\b|\bMain\s+Document\b|\bPg\s+\d+\s+of\s+\d+\b/i.test(inReName)) {
+          inReName = '';
+        }
         const repPart = displayText.match(/\d+\s+[A-Z].*/)?.[0];
         if (inReName.length > 8 && repPart) {
           // Case A: full "In re [name]" in window — rebuild cleanly
