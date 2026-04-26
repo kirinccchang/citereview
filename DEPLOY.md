@@ -209,3 +209,17 @@ Terraform may not have run yet. Check GitHub Actions → cloudflare-domain-autom
 
 **HTTPS certificate error**  
 Cloudflare auto-provisions TLS for custom domains. Allow up to 24 hours after adding the custom domain in Pages.
+
+---
+
+## Google Analytics (Optional)
+
+If you only want a basic answer to "how many people are using the site?", GA4 is enough.
+
+1. In Google Analytics, create a GA4 property and a Web data stream for `https://cite.review`.
+2. Copy the Measurement ID, which looks like `G-XXXXXXXXXX`.
+3. Open `analytics.js` in the repo root.
+4. Replace the placeholder `G-XXXXXXXXXX` with your real Measurement ID.
+5. Push and redeploy.
+
+`analytics.js` stays disabled until a real GA4 Measurement ID is present, so the placeholder is safe to ship temporarily.
