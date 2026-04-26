@@ -216,6 +216,10 @@ cite.review is one tool in the [lawreview.tools](https://lawreview.tools/) ecosy
 - Bug reports / features: [github.com/kirinccchang/citereview/issues](https://github.com/kirinccchang/citereview/issues)
 - Author: [kirinchang.com/contact](https://kirinchang.com/contact/)
 
+## Acknowledgments
+
+The multi-factor case name matching and fallback search improvements were informed by [Rebecca Fordon](https://www.linkedin.com/in/rebeccafordon/)'s [citation-verifier](https://github.com/rlfordon/citation-verifier). Thank you, Rebecca.
+
 ## License
 
 [AGPL-3.0](LICENSE)
