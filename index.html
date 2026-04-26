@@ -1510,6 +1510,20 @@
 
   .cl-link { color: var(--accent); font-size: 12px; text-decoration: none; }
   .cl-link:hover { text-decoration: underline; }
+  .download-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .download-label {
+    color: var(--text2);
+    opacity: 0.9;
+  }
+  .download-sep {
+    color: var(--text2);
+    opacity: 0.65;
+  }
 
   /* Citation item right column */
   .cit-actions {
@@ -2539,6 +2553,7 @@
                   <div class="export-wrap" @click.outside="showExportMenu=false">
                     <button class="btn-export" @click="showExportMenu=!showExportMenu">Export ↓</button>
                     <div x-show="showExportMenu" class="export-menu">
+                      <a x-show="selectedVerifiedCaseCount > 0" @click="downloadSelectedVerifiedCasesZip();showExportMenu=false">🗜 Download selected verified cases (ZIP)</a>
                       <a @click="exportReport();showExportMenu=false">📋 Copy as text</a>
                       <a @click="downloadHtml();showExportMenu=false">🌐 HTML report</a>
                       <a @click="downloadPdf();showExportMenu=false">🧾 PDF (text via Print)</a>
@@ -2585,6 +2600,7 @@
                 <a @click="deselectAll()">Deselect all</a>
                 <a @click="selectPending()">Select unchecked</a>
                 <a x-show="errorCount + warningCount > 0" @click="selectProblems()">Select warnings/errors</a>
+                <a x-show="selectedVerifiedCaseCount > 0" @click="downloadSelectedVerifiedCasesZip()">Download selected verified cases (ZIP)</a>
                 <span class="select-count" x-text="selectedCount + ' of ' + totalCount + ' selected'"></span>
               </div>
 
@@ -2651,6 +2667,14 @@
                         <a x-show="cit.result?.clId" href="#"
                           @click.prevent="viewOpinion(cit)"
                           class="cl-link" style="font-weight:500">View opinion ↗</a>
+                        <span x-show="cit.kind === 'case' && cit.result?.status === 'verified' && (cit.result?.clId || cit.result?.clUrl)" class="download-links">
+                          <span class="download-label">Download:</span>
+                          <a href="#" @click.prevent="downloadOpinionText(cit)" class="cl-link">Text</a>
+                          <span class="download-sep">|</span>
+                          <a href="#" @click.prevent="downloadOpinionHtml(cit)" class="cl-link">HTML</a>
+                          <span class="download-sep">|</span>
+                          <a href="#" @click.prevent="downloadOpinionPdf(cit)" class="cl-link">PDF</a>
+                        </span>
                         <a x-show="cit.result?.liiUrl && !cit.govInfoUrl" :href="cit.result?.liiUrl"
                           target="_blank" class="cl-link">Cornell LII ↗</a>
                         <a x-show="cit.govInfoUrl && cit.result?.status === 'verified'" :href="cit.govInfoUrl"
@@ -2808,7 +2832,42 @@ import { getCitations } from 'https://esm.sh/@beshkenadze/eyecite@2.7.6';
 import * as pdfjsLib from 'https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.min.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
 
-const API = 'https://citereview-api.kirinccchang.workers.dev';
+const PROD_API = 'https://citereview-api.kirinccchang.workers.dev';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
+
+function getRuntimeFlag(key, defaultValue = null) {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has(key)) return params.get(key);
+  const stored = localStorage.getItem(`citereview_${key}`);
+  return stored == null ? defaultValue : stored;
+}
+
+function parseBoolFlag(value, fallback = false) {
+  if (value == null) return fallback;
+  const v = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(v)) return true;
+  if (['0', 'false', 'no', 'off'].includes(v)) return false;
+  return fallback;
+}
+
+const API = (() => {
+  const override = getRuntimeFlag('api_base', '');
+  if (override) {
+    try {
+      const u = new URL(override);
+      return u.origin;
+    } catch (_) {
+      // Ignore invalid override and use default API.
+    }
+  }
+  return PROD_API;
+})();
+
+const IS_LOCALHOST = LOCAL_HOSTS.has(window.location.hostname);
+const ENABLE_VERIFIER_V2 = parseBoolFlag(
+  getRuntimeFlag('verifier_v2', IS_LOCALHOST ? '1' : '1'),
+  true
+);
 let _citationWorker = null;
 let _citationWorkerDisabled = false;
 
@@ -3304,6 +3363,29 @@ function stripOpinionBoilerplate(text) {
     .trim();
 
   return out;
+}
+
+function htmlToPlainText(html) {
+  if (!html) return '';
+  return String(html)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function asAbsoluteCourtListenerUrl(url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (String(url).startsWith('/')) return `https://www.courtlistener.com${url}`;
+  return `https://www.courtlistener.com/${String(url).replace(/^\/+/, '')}`;
+}
+
+function storageCourtListenerUrl(path) {
+  if (!path) return null;
+  const p = String(path).trim();
+  if (!p) return null;
+  if (/^https?:\/\//i.test(p)) return p;
+  return `https://storage.courtlistener.com/${p.replace(/^\/+/, '')}`;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -4416,9 +4498,102 @@ const CASE_NAME_STOPWORDS = new Set([
   'america', 'american', 'national', 'federal', 'government', 'administration',
 ]);
 
+const CASE_ABBREV_MAP = {
+  "cnty": "county",
+  "cty": "county",
+  "dep't": "department",
+  "dept": "department",
+  "comm'r": "commissioner",
+  "commn": "commission",
+  "comm": "commission",
+  "bd": "board",
+  "dist": "district",
+  "int'l": "international",
+  "intl": "international",
+  "nat'l": "national",
+  "natl": "national",
+  "u.s.": "united states",
+  "u.s": "united states",
+  "fed": "federal",
+};
+
+function normalizeCaseNameForMatch(input) {
+  let s = String(input || '').toLowerCase().trim();
+  s = s.replace(/[\u2018\u2019]/g, "'");
+  s = s.replace(/\bin the matter of\b/g, 'in re');
+  s = s.replace(/\bmatter of\b/g, 'in re');
+  s = s.replace(/\bcommonwealth\b/g, 'state');
+  s = s.replace(/\bpeople\b/g, 'state');
+  s = s.replace(/\s*&\s*/g, ' and ');
+  for (const [abbr, full] of Object.entries(CASE_ABBREV_MAP)) {
+    const escapedAbbr = abbr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`\\b${escapedAbbr}\\b`, 'g');
+    s = s.replace(re, full);
+  }
+  // Collapse initials before stripping punctuation: "l.p." -> "lp"
+  s = s.replace(/\b([a-z])\.([a-z])\.?(?=\s|$)/g, '$1$2');
+  s = s.replace(/[^a-z0-9\s]/g, ' ');
+  s = s.replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+function sequenceSimilarity(a, b) {
+  const s1 = String(a || '');
+  const s2 = String(b || '');
+  if (!s1 || !s2) return 0;
+  const m = s1.length;
+  const n = s2.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (s1[i - 1] === s2[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+      else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[m][n] / Math.max(m, n);
+}
+
+function jaccardSimilarity(wordsA, wordsB) {
+  const a = new Set(wordsA);
+  const b = new Set(wordsB);
+  if (!a.size || !b.size) return 0;
+  let inter = 0;
+  for (const w of a) if (b.has(w)) inter++;
+  const uni = new Set([...a, ...b]).size;
+  return uni ? inter / uni : 0;
+}
+
+function keyWordSet(norm) {
+  return new Set(
+    norm.split(/\s+/).filter(w => w.length > 2 && !CASE_NAME_STOPWORDS.has(w))
+  );
+}
+
+function multiFactorNameSimilarity(citedText, foundCaseName) {
+  const casePart = String(citedText || '').replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim();
+  const aNorm = normalizeCaseNameForMatch(casePart);
+  const bNorm = normalizeCaseNameForMatch(foundCaseName);
+  if (!aNorm || !bNorm) return 0;
+
+  const wordsA = aNorm.split(/\s+/).filter(Boolean);
+  const wordsB = bNorm.split(/\s+/).filter(Boolean);
+
+  const seq = sequenceSimilarity(aNorm, bNorm);               // 0.25
+  const jaccard = jaccardSimilarity(wordsA, wordsB);          // 0.30
+  const substr = (aNorm.includes(bNorm) || bNorm.includes(aNorm))
+    ? (Math.min(aNorm.length, bNorm.length) / Math.max(aNorm.length, bNorm.length))
+    : 0;                                                       // 0.20
+  const kwA = keyWordSet(aNorm);
+  const kwB = keyWordSet(bNorm);
+  const kw = jaccardSimilarity([...kwA], [...kwB]);           // 0.25
+
+  const combined = (0.25 * seq) + (0.30 * jaccard) + (0.20 * substr) + (0.25 * kw);
+  return Math.max(0, Math.min(1, combined));
+}
+
 // Significant words: ≥4 chars, not stopwords.
 function sigCaseWords(s) {
-  return s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+  return normalizeCaseNameForMatch(s).split(/\s+/)
     .filter(w => w.length >= 4 && !CASE_NAME_STOPWORDS.has(w));
 }
 
@@ -4426,10 +4601,10 @@ function sigCaseWords(s) {
 // Uses word-overlap similarity (comparable to RapidFuzz partial_ratio ≥75%).
 function caseNameMatches(citedText, foundCaseName) {
   if (!foundCaseName) return true;
-  const casePart = citedText.replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim();
+  const casePart = String(citedText || '').replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim();
   if (!casePart || casePart.length < 4) return true;
 
-  const foundLower = foundCaseName.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+  const foundLower = normalizeCaseNameForMatch(foundCaseName);
   const vIdx = casePart.search(/\bv\.\s/i);
 
   if (vIdx >= 0) {
@@ -4612,12 +4787,8 @@ function proprietaryWarning(text) {
 // Comparable to RapidFuzz partial_ratio used by JurisCheck (75% threshold).
 function caseNameSimilarity(citedText, foundCaseName) {
   if (!foundCaseName) return 0;
-  const clean = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
-  const a = new Set(clean(citedText.replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim()));
-  const b = clean(foundCaseName);
-  if (!a.size || !b.length) return 0;
-  const shared = b.filter(w => a.has(w)).length;
-  return Math.round((shared / Math.max(a.size, b.length)) * 1000) / 10; // one decimal
+  const sim = multiFactorNameSimilarity(citedText, foundCaseName);
+  return Math.round(sim * 1000) / 10; // one decimal percentage
 }
 
 // ── CourtListener URL sanity check ───────────────────────────────────────────
@@ -4661,6 +4832,200 @@ function citationToClCourt(text) {
   return null;
 }
 
+function extractDocketNumberFromCitation(text) {
+  if (!text) return null;
+  const m = String(text).match(/(?:Case\s+No\.?|No\.?)\s*([\d:]+\s*[-–—]\s*(?:cv|cr|bk|civ|crim|mc|misc|mj)\s*[-–—]\s*[\w-]+)/i)
+    || String(text).match(/\b(\d{2}\s*[-–—]\s*\d{4,6})\b/)
+    || String(text).match(/\b([A-Z]?\d{1,2}\s*[-–—]\s*\d{3,6}(?:\s*[-–—]\s*[A-Z]+)?)\b/i);
+  return m ? normSpace(m[1]).replace(/\s*[-–—]\s*/g, '-').replace(/\s*:\s*/g, ':') : null;
+}
+
+function extractCitedCourtText(text) {
+  const parens = [...String(text || '').matchAll(/\(([^)]+)\)/g)].map(m => m[1]);
+  if (!parens.length) return '';
+  const p = parens.find(v => /\b(?:Cir\.|D\.|S\.D\.|E\.D\.|N\.D\.|W\.D\.|Bankr\.|App\.|Ct\.)\b/i.test(v)) || parens[0];
+  return p || '';
+}
+
+function normalizeDocketNumberLoose(dn) {
+  if (!dn) return '';
+  return String(dn).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function evaluateFallbackCandidate(cit, candidate = {}) {
+  const foundCaseName = candidate.case_name || candidate.caseName || '';
+  const foundCourt = candidate.court || candidate.court_id || '';
+  const foundDate = candidate.date_filed || candidate.dateFiled || '';
+  const foundDocket = candidate.docket_number || candidate.docketNumber || '';
+  const foundCitation = Array.isArray(candidate.citation)
+    ? candidate.citation.map(String).join(' ')
+    : String(candidate.citation || '');
+
+  let wName = 0.5;
+  let wCourt = 0.2;
+  let wDate = 0.2;
+  let wDocket = 0.05;
+  let wCite = 0.05;
+
+  const citedCourt = extractCitedCourtText(cit.text);
+  const citedYear = extractCitedYear(cit.text);
+  const citedDocket = extractDocketNumberFromCitation(cit.text);
+  const hasStructuredCite = !!parseReporterToken(citationWithoutPincite(cit.text));
+
+  if (!citedCourt) { wName += wCourt * 0.5; wDate += wCourt * 0.5; wCourt = 0; }
+  if (!citedYear) { wName += wDate * 0.6; wCite += wDate * 0.4; wDate = 0; }
+  if (!citedDocket) { wName += wDocket; wDocket = 0; }
+  if (!hasStructuredCite) { wName += wCite; wCite = 0; }
+
+  const diagnostics = [];
+
+  const nameSim = multiFactorNameSimilarity(cit.text, foundCaseName);
+  if (nameSim < 0.6) diagnostics.push(`Name mismatch (${Math.round(nameSim * 100)}%)`);
+  const nameScore = nameSim;
+
+  let courtScore = 0;
+  if (wCourt > 0) {
+    const inferredCourt = citationToClCourt(cit.text);
+    const foundLower = String(foundCourt || '').toLowerCase();
+    if (inferredCourt && foundLower.includes(inferredCourt)) courtScore = 1;
+    else if (citedCourt && foundLower && foundLower.includes(String(citedCourt).toLowerCase().replace(/[^a-z0-9]/g, ''))) courtScore = 1;
+    else diagnostics.push('Court mismatch/unverified');
+  }
+
+  let dateScore = 0;
+  if (wDate > 0 && citedYear) {
+    const ym = String(foundDate).match(/\b(18|19|20)\d{2}\b/);
+    if (ym) {
+      const yearDiff = Math.abs(parseInt(ym[0], 10) - citedYear);
+      if (yearDiff === 0) dateScore = 1;
+      else if (yearDiff === 1) dateScore = 0.5;
+      else diagnostics.push(`Date mismatch (cited ${citedYear}, found ${ym[0]})`);
+    } else diagnostics.push(`Date ${citedYear} could not be verified`);
+  }
+
+  let docketScore = 0;
+  if (wDocket > 0 && citedDocket) {
+    const a = normalizeDocketNumberLoose(citedDocket);
+    const b = normalizeDocketNumberLoose(foundDocket);
+    if (a && b && a === b) docketScore = 1;
+    else diagnostics.push('Docket mismatch');
+  }
+
+  let citeScore = 0;
+  if (wCite > 0) {
+    const parsed = parseReporterToken(citationWithoutPincite(cit.text));
+    if (parsed) {
+      const citeStr = `${parsed.volume} ${parsed.reporter} ${parsed.page}`;
+      const normA = normReporter(citeStr);
+      const normB = normReporter(foundCitation);
+      if (normA && normB && normB.includes(normA)) citeScore = 1;
+      else diagnostics.push('Reporter citation not corroborated');
+    }
+  }
+
+  const score = (wName * nameScore) + (wCourt * courtScore) + (wDate * dateScore) + (wDocket * docketScore) + (wCite * citeScore);
+  return { score: Math.max(0, Math.min(1, score)), diagnostics };
+}
+
+function classifyFallbackTier(score) {
+  if (score >= 0.85) return 'likely_real';
+  if (score >= 0.4) return 'possible_match';
+  return 'not_found';
+}
+
+function isRecapDocSubstantive(desc) {
+  const text = String(desc || '').toLowerCase();
+  if (!text) return false;
+  const nonSubstantive = [
+    'notice of',
+    'certificate of service',
+    'motion to',
+    'motion for',
+    'proposed order',
+    'leave to',
+    'transcript order form',
+  ];
+  if (nonSubstantive.some(x => text.includes(x))) return false;
+  return [
+    'opinion', 'order', 'judgment', 'memorandum', 'decision',
+    'report and recommendation', 'findings of fact', 'decree', 'ruling',
+  ].some(x => text.includes(x));
+}
+
+function recapDateProximity(citText, entryDate) {
+  const citedYear = extractCitedYear(citText);
+  if (!citedYear || !entryDate) return 0;
+  const m = String(entryDate).match(/\b(18|19|20)\d{2}\b/);
+  if (!m) return 0;
+  const diff = Math.abs(parseInt(m[0], 10) - citedYear);
+  if (diff === 0) return 1;
+  if (diff === 1) return 0.5;
+  return 0;
+}
+
+async function recapSearchByDocket(cit, signal) {
+  const docketNo = extractDocketNumberFromCitation(cit.text);
+  if (!docketNo) return null;
+  try {
+    const dockets = await fetchCourtListener('/api/rest/v4/dockets/', {
+      params: { docket_number: docketNo, page_size: 5 },
+      signal,
+    });
+    const rows = dockets?.results || [];
+    if (!rows.length) return null;
+
+    const scored = rows.map(d => {
+      const nameScore = multiFactorNameSimilarity(cit.text, d.case_name || '');
+      const dateScore = recapDateProximity(cit.text, d.date_filed || d.date_created || '');
+      return { d, score: (0.8 * nameScore) + (0.2 * dateScore) };
+    }).sort((a, b) => b.score - a.score);
+
+    const best = scored[0]?.d;
+    if (!best) return null;
+
+    // Try to corroborate using docket entries/documents when available.
+    let substantiveHit = false;
+    try {
+      const entries = await fetchCourtListener('/api/rest/v4/docket-entries/', {
+        params: { docket: best.id, page_size: 50 },
+        signal,
+      });
+      const docs = [];
+      for (const e of (entries?.results || [])) {
+        const desc = `${e.description || ''} ${e.entry_description || ''}`.trim();
+        docs.push({
+          desc,
+          score: recapDateProximity(cit.text, e.date_filed || e.entry_date_filed || ''),
+          isSubstantive: isRecapDocSubstantive(desc),
+          isFree: e.is_free_on_pacer === true,
+        });
+      }
+      docs.sort((a, b) => {
+        const aKey = (a.isSubstantive ? 2 : 0) + (a.isFree ? 1 : 0) + a.score;
+        const bKey = (b.isSubstantive ? 2 : 0) + (b.isFree ? 1 : 0) + b.score;
+        return bKey - aKey;
+      });
+      substantiveHit = !!docs[0]?.isSubstantive || !!docs[0]?.isFree;
+    } catch (_) {
+      // Docket entries endpoint can be incomplete on some CL records.
+    }
+
+    return {
+      status: 'warning',
+      matchTier: substantiveHit ? 'possible_match' : 'not_found',
+      confidence: substantiveHit ? 55 : 40,
+      msg: substantiveHit
+        ? `Found in RECAP with substantive docket materials · ${best.case_name}`
+        : `Found in RECAP docket index only · ${best.case_name}`,
+      clUrl: best.absolute_url ? `https://www.courtlistener.com${best.absolute_url}` : null,
+      clId: best.id || null,
+      similarity: Math.round(scored[0].score * 1000) / 10,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 async function clSearch(cit, signal) {
   // Search using only the case name portion — including reporter/volume/page in the
   // query confuses CourtListener's full-text search and can surface wrong cases.
@@ -4680,39 +5045,56 @@ async function clSearch(cit, signal) {
   if (courtId) searchParams.court = courtId;
   try {
     const data = await fetchCourtListener('/api/rest/v4/search/', { params: searchParams, signal });
-    const top = (data.results || [])[0];
-    if (!top?.absolute_url) {
+    const rows = data.results || [];
+    if (!rows.length) {
       return { status: 'error', msg: 'Not found in CourtListener' };
     }
-    // CourtListener search API returns camelCase "caseName", not snake_case "case_name".
-    // Accept both to be safe.
-    const caseName = top.case_name || top.caseName || '';
-    const clUrl = safeClUrl(top.absolute_url, cit.text);
-    const sim = caseNameSimilarity(cit.text, caseName);
-    if (!caseNameMatches(cit.text, caseName)) {
+    const candidates = rows.slice(0, 12).map(r => {
+      const evalResult = evaluateFallbackCandidate(cit, r);
+      const name = r.case_name || r.caseName || '';
+      return {
+        row: r,
+        score: evalResult.score,
+        diagnostics: evalResult.diagnostics,
+        caseName: name,
+        similarity: caseNameSimilarity(cit.text, name),
+      };
+    }).sort((a, b) => b.score - a.score);
+
+    const best = candidates[0];
+    const top = best?.row;
+    const caseName = best?.caseName || '';
+    const clUrl = safeClUrl(top?.absolute_url || '', cit.text);
+    const sim = best?.similarity ?? 0;
+    const tier = classifyFallbackTier(best?.score ?? 0);
+
+    if (!caseNameMatches(cit.text, caseName) || tier === 'not_found') {
       const citedName = cit.text.replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim() || cit.text;
+      const diag = (best?.diagnostics || []).join('; ');
+      const reason = diag ? ` · ${diag}` : '';
       return {
         status: 'error',
-        msg: `Case name mismatch — cited: "${citedName}" · found: "${caseName}"`,
+        msg: `Case name mismatch/low confidence — cited: "${citedName}" · found: "${caseName}"${reason}`,
         clUrl: null,
         lexisUrl: wlUrl,
         scholarUrl: sUrl,
         similarity: sim,
+        confidence: Math.round((best?.score || 0) * 100),
+        matchTier: tier,
       };
     }
-    // Case name matches but citation was not in the index (structured lookup was 404).
-    // We found a case with the same name, but we cannot confirm it's the same reporter/volume/page
-    // (there may be multiple "Johnson v. Dunn" cases in different courts).
-    // Always treat as warning — name match alone is not enough to verify a citation.
+
     return {
-      status: sim >= 85 && clUrl ? 'warning' : 'error',
-      msg: 'Case found by name but citation not in index — verify reporter/volume/page',
+      status: 'warning',
+      msg: 'Case found by search fallback (not citation index) — verify reporter/volume/page',
       clUrl,
-      clId: top.cluster_id || null,
+      clId: top?.cluster_id || top?.id || null,
       lexisUrl: wlUrl,
       scholarUrl: sUrl,
-      confidence: 65,
+      confidence: Math.round((best?.score || 0) * 100),
       similarity: sim,
+      matchTier: tier,
+      diagnostics: best?.diagnostics || [],
     };
   } catch (e) {
     return { status: 'error', msg: e.name === 'TimeoutError' ? 'Request timed out' : e.message };
@@ -4830,8 +5212,47 @@ async function validateCaseMetadata(cit, cluster, structured, wlUrl, scholarUrl)
   return null;
 }
 
+async function prefetchCaseLookupHits(citations = []) {
+  const caseCitations = citations.filter(c => c.kind === 'case');
+  const out = new Map();
+  if (!caseCitations.length) return out;
+
+  // IMPORTANT: do NOT map multiline citation-lookup responses by array index.
+  // CourtListener can reorder/skip lines in ways that cause wrong-hit assignment.
+  // That leads to transient false mismatches (first run wrong, reverify correct).
+  // We prefetch concurrently but keep one request per citation for deterministic mapping.
+  const CHUNK = 10;
+  for (let i = 0; i < caseCitations.length; i += CHUNK) {
+    const chunk = caseCitations.slice(i, i + CHUNK);
+    await Promise.all(chunk.map(async (c) => {
+      try {
+        let _forLookup = citationWithoutPincite(c.text || c.lookupText || '').trim();
+        { let _prev; do { _prev = _forLookup; _forLookup = _forLookup.replace(/\s*\([^)]*\)\s*$/, '').trim(); } while (_forLookup !== _prev && !/\d$/.test(_forLookup)); }
+        _forLookup = _forLookup.replace(/[.,]\s*$/, '').trim();
+        const _repM = _forLookup.match(/\b(\d+)\s+([A-Z][\w.\s]+?)\s+(\d+)\s*$/);
+        const structured = _repM
+          ? { volume: parseInt(_repM[1], 10), reporter: _repM[2].trim(), page: parseInt(_repM[3], 10) }
+          : parseReporterToken(c.lookupText);
+        const postBody = structured || { text: c.text || c.lookupText };
+        const data = await fetchCourtListener('/api/rest/v4/citation-lookup/', {
+          postBody,
+          signal: AbortSignal.timeout(20000),
+        });
+        const hits = Array.isArray(data)
+          ? data
+          : (Array.isArray(data?.data) ? data.data : []);
+        if (hits?.[0]) out.set(c.id, hits[0]);
+      } catch (_) {
+        // Ignore prefetch failures; verifyCitation will retry normally.
+      }
+    }));
+  }
+
+  return out;
+}
+
 // ── Verification ──────────────────────────────────────────────────────────────
-async function verifyCitation(cit) {
+async function verifyCitation(cit, opts = {}) {
   if (cit.kind === 'case') {
     try {
       // Extract volume/reporter/page from the full citation text (cit.text) rather than from
@@ -4856,14 +5277,19 @@ async function verifyCitation(cit) {
         ? { volume: parseInt(_repM[1], 10), reporter: _repM[2].trim(), page: parseInt(_repM[3], 10) }
         : parseReporterToken(cit.lookupText);
       const postBody = structured || { text: cit.text || cit.lookupText };
-      const data = await fetchCourtListener('/api/rest/v4/citation-lookup/', {
-        postBody,
-        signal: AbortSignal.timeout(20000),
-      });
-      // Worker returns { error: 'not_found', data: [...] } for all-404 results (not cached).
-      const hits = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : null);
-      if (!hits) return { status: 'error', msg: data?.error || 'API error' };
-      const hit = hits[0];
+
+      let hit = opts.lookupHit || null;
+      if (!hit) {
+        const data = await fetchCourtListener('/api/rest/v4/citation-lookup/', {
+          postBody,
+          signal: AbortSignal.timeout(20000),
+        });
+        // Worker returns { error: 'not_found', data: [...] } for all-404 results (not cached).
+        const hits = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : null);
+        if (!hits) return { status: 'error', msg: data?.error || 'API error' };
+        hit = hits[0] || null;
+      }
+
       if (!hit) return { status: 'error', msg: 'API error' };
       if (hit.status === 200 && hit.clusters?.length > 0) {
         const cluster = hit.clusters[0];
@@ -4899,6 +5325,18 @@ async function verifyCitation(cit) {
       // CourtListener's citation index has gaps; search is more comprehensive.
       const searchResult = await clSearch(cit, AbortSignal.timeout(15000));
       if (searchResult.status === 'error') {
+        if (ENABLE_VERIFIER_V2) {
+          const recapResult = await recapSearchByDocket(cit, AbortSignal.timeout(15000));
+          if (recapResult) {
+            const wl = wlCaseSearchUrl(citationWithoutPincite(cit.text).slice(0, 120), 'ALLCASES');
+            const gs = scholarCaseUrl(citationWithoutPincite(cit.text));
+            return {
+              ...recapResult,
+              lexisUrl: recapResult.lexisUrl || wl,
+              scholarUrl: recapResult.scholarUrl || gs,
+            };
+          }
+        }
         return proprietaryWarning(cit.text) || searchResult;
       }
       return searchResult;
@@ -4921,12 +5359,20 @@ async function verifyCitation(cit) {
       if (data.count > 0 && data.results?.length > 0) {
         const docket = data.results[0];
         const clUrl = `https://www.courtlistener.com${docket.absolute_url}`;
+        let msg = `Docket found in RECAP · ${docket.case_name}`;
+        let tier = 'possible_match';
+        if (ENABLE_VERIFIER_V2) {
+          const deep = await recapSearchByDocket(cit, AbortSignal.timeout(15000));
+          if (deep?.matchTier) tier = deep.matchTier;
+          if (deep?.msg) msg = deep.msg;
+        }
         return {
           status: 'verified',
-          msg: `Docket found in RECAP · ${docket.case_name}`,
+          msg,
           clUrl,
           lexisUrl: wlUrl,
           confidence: 90,
+          matchTier: tier,
         };
       }
       // count=0 — docket not uploaded to RECAP (common for less-publicized cases)
@@ -5263,6 +5709,9 @@ function app() {
     // ── Computed counts ───────────────────────────────────────────────────────
     get totalCount()    { return this.citations.length; },
     get selectedCount() { return this.citations.filter(c => c.selected).length; },
+    get selectedVerifiedCaseCount() {
+      return this.filteredCitations.filter(c => c.selected && c.kind === 'case' && c.result?.status === 'verified').length;
+    },
     get doneCount()     { return this.citations.filter(c => c.result).length; },
     get verifiedCount() { return this.citations.filter(c => c.result?.status === 'verified').length; },
     get warningCount()  { return this.citations.filter(c => c.result?.status === 'warning').length; },
@@ -5528,12 +5977,16 @@ function app() {
 
       targets.forEach(c => { c.result = null; c.checking = false; });
 
+      const prefetchedLookupHits = await prefetchCaseLookupHits(targets);
+
       const BATCH = 3;
       for (let i = 0; i < targets.length; i += BATCH) {
         const batch = targets.slice(i, i + BATCH);
         batch.forEach(c => { c.checking = true; });
         await Promise.all(batch.map(async c => {
-          c.result = await verifyCitation(c);
+          c.result = await verifyCitation(c, {
+            lookupHit: prefetchedLookupHits.get(c.id) || null,
+          });
           c.checking = false;
         }));
       }
@@ -5947,6 +6400,147 @@ function app() {
       }
     },
 
+    async _resolveOpinionDownloadAssets(cit) {
+      if (cit._opinionAssetsResolved && cit._opinionAssets) return cit._opinionAssets;
+      const clId = cit.result?.clId;
+      const clUrl = cit.result?.clUrl || (clId ? `https://www.courtlistener.com/opinion/${clId}/` : null);
+      const caseName = (cit.text || '').replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim() || 'opinion';
+
+      let plainText = stripOpinionBoilerplate(cit.opinionText || '');
+      let htmlRaw = '';
+      let pdfUrl = null;
+      let filed = null;
+      let citations = [];
+
+      if (clId) {
+        try {
+          const opinions = await fetchCourtListener('/api/rest/v4/opinions/', {
+            params: {
+              cluster: clId,
+              fields: 'id,type,plain_text,html_with_citations,download_url,absolute_url',
+              page_size: 20,
+            },
+            signal: AbortSignal.timeout(20000),
+          });
+          const rows = opinions?.results || [];
+
+          const ORDER = {
+            '010combined': 0, '015headmatter': 1, '020lead': 2, '025plurality': 3,
+            '030concurrence': 4, '035concurrenceinpart': 5, '040dissent': 6,
+            '050addendum': 7, '060remittitur': 8, '070rehearing': 9, '080onbankeen': 10,
+          };
+          const sorted = [...rows].sort((a, b) => (ORDER[a.type] ?? 99) - (ORDER[b.type] ?? 99));
+
+          if (!plainText) {
+            const allText = sorted.map(op => stripOpinionBoilerplate(op.plain_text || htmlToPlainText(op.html_with_citations || ''))).filter(Boolean);
+            plainText = allText.join('\n\n── ── ──\n\n');
+          }
+
+          htmlRaw = sorted.map(op => op.html_with_citations || '').filter(Boolean).join('\n\n<hr/>\n\n');
+
+          for (const op of sorted) {
+            const durl = asAbsoluteCourtListenerUrl(op.download_url || op.absolute_url || '');
+            if (durl && /\.pdf(\?|$)|\/pdf\/?(\?|$)/i.test(durl)) {
+              pdfUrl = durl;
+              break;
+            }
+          }
+        } catch (_) {
+          // Keep best-effort fallback behavior.
+        }
+
+        try {
+          const cluster = await fetchCourtListener(`/api/rest/v4/clusters/${clId}/`, {
+            params: {
+              fields: 'id,case_name,citations,date_filed,filepath_pdf_harvard,filepath_pdf_with_citations,filepath_pdf_with_extracted_text,absolute_url',
+            },
+            signal: AbortSignal.timeout(15000),
+          });
+          filed = cluster?.date_filed || null;
+          citations = Array.isArray(cluster?.citations) ? cluster.citations : [];
+          if (!pdfUrl) {
+            pdfUrl = storageCourtListenerUrl(
+              cluster?.filepath_pdf_harvard
+              || cluster?.filepath_pdf_with_citations
+              || cluster?.filepath_pdf_with_extracted_text
+            );
+          }
+          if (!pdfUrl && cluster?.absolute_url) {
+            const abs = asAbsoluteCourtListenerUrl(cluster.absolute_url);
+            if (abs) pdfUrl = abs.replace(/\/?$/, '/pdf/');
+          }
+        } catch (_) {
+          // Keep best-effort fallback behavior.
+        }
+      }
+
+      if (!htmlRaw && plainText) {
+        htmlRaw = `<pre>${escHtml(plainText)}</pre>`;
+      }
+
+      const headerLines = [caseName];
+      if (citations.length) headerLines.push(citations.join(', '));
+      if (filed) headerLines.push(`Filed: ${filed}`);
+      if (clUrl) headerLines.push(`Source: ${clUrl}`);
+      headerLines.push('-'.repeat(60), '');
+      const txtHeader = headerLines.join('\n');
+
+      const textAsset = (txtHeader + '\n' + (plainText || '')).trim();
+      const htmlAsset = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${escHtml(caseName)}</title></head><body><h1>${escHtml(caseName)}</h1><p>${clUrl ? `<a href=\"${escHtml(clUrl)}\" target=\"_blank\" rel=\"noopener\">Source</a>` : ''}</p><hr/>${htmlRaw || `<pre>${escHtml(plainText || '')}</pre>`}</body></html>`;
+
+      const asset = {
+        caseName,
+        text: textAsset,
+        html: htmlAsset,
+        pdfUrl: pdfUrl || null,
+        sourceUrl: clUrl,
+      };
+      cit._opinionAssets = asset;
+      cit._opinionAssetsResolved = true;
+      return asset;
+    },
+
+    _downloadStringFile(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    },
+
+    async downloadOpinionText(cit) {
+      if (!cit?.result || cit.result.status !== 'verified') return;
+      const asset = await this._resolveOpinionDownloadAssets(cit);
+      if (!asset?.text) { showToast('No opinion text available from CourtListener'); return; }
+      this._downloadStringFile(asset.text, `${this._safeBaseName(asset.caseName)}.txt`, 'text/plain;charset=utf-8');
+      showToast('Downloaded Text');
+    },
+
+    async downloadOpinionHtml(cit) {
+      if (!cit?.result || cit.result.status !== 'verified') return;
+      const asset = await this._resolveOpinionDownloadAssets(cit);
+      if (!asset?.html) { showToast('No opinion HTML available from CourtListener'); return; }
+      this._downloadStringFile(asset.html, `${this._safeBaseName(asset.caseName)}.html`, 'text/html;charset=utf-8');
+      showToast('Downloaded HTML');
+    },
+
+    async downloadOpinionPdf(cit) {
+      if (!cit?.result || cit.result.status !== 'verified') return;
+      const asset = await this._resolveOpinionDownloadAssets(cit);
+      if (!asset?.pdfUrl) {
+        showToast('No PDF available for this opinion on CourtListener');
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = asset.pdfUrl;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.download = `${this._safeBaseName(asset.caseName)}.pdf`;
+      a.click();
+      showToast('Downloading PDF...');
+    },
+
     // ── Export ────────────────────────────────────────────────────────────────
     _reportDoc(doc) {
       return doc || this.currentDoc;
@@ -6130,6 +6724,112 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
       a.download = 'citereview_batch_reports.zip';
       a.click();
       showToast('Batch ZIP exported');
+    },
+
+    async downloadSelectedVerifiedCasesZip() {
+      const doc = this._reportDoc();
+      if (!doc) return;
+      if (typeof JSZip === 'undefined') {
+        showToast('ZIP export unavailable in this browser context');
+        return;
+      }
+
+      const selectedCases = this.filteredCitations.filter(c =>
+        c.selected && c.kind === 'case' && c.result?.status === 'verified'
+      );
+      if (!selectedCases.length) {
+        showToast('No visible selected verified cases to download');
+        return;
+      }
+
+      const zip = new JSZip();
+      const nowIso = new Date().toISOString();
+      const readme = [
+        'cite.review — Selected Verified Cases ZIP',
+        '',
+        `Document: ${this.documentName(doc)}`,
+        `Generated: ${nowIso}`,
+        `Selected verified cases: ${selectedCases.length}`,
+        '',
+        'Format guide:',
+        '- Text: best for LLMs',
+        '- HTML: formatted with footnotes',
+        '- PDF: best for reading and printing',
+        '',
+      ];
+      zip.file('README.txt', readme.join('\n'));
+
+      const q = s => '"' + String(s || '').replace(/"/g, '""') + '"';
+      const csvRows = [
+        ['No', 'Case', 'Citation', 'CourtListener', 'Text File', 'HTML File', 'PDF File', 'PDF URL'].map(q).join(','),
+      ];
+
+      let pdfIncluded = 0;
+      let pdfLinkedOnly = 0;
+      let pdfMissing = 0;
+
+      for (let i = 0; i < selectedCases.length; i++) {
+        const cit = selectedCases[i];
+        const asset = await this._resolveOpinionDownloadAssets(cit);
+        const caseName = asset?.caseName || cit.text || `case_${i + 1}`;
+        const serial = String(i + 1).padStart(2, '0');
+        const base = `${serial}_${this._safeBaseName(caseName)}`;
+        const textName = `${base}.txt`;
+        const htmlName = `${base}.html`;
+        const pdfName = `${base}.pdf`;
+
+        zip.file(textName, asset?.text || stripOpinionBoilerplate(cit.opinionText || '') || '');
+        zip.file(htmlName, asset?.html || `<pre>${escHtml(asset?.text || stripOpinionBoilerplate(cit.opinionText || '') || '')}</pre>`);
+
+        let pdfFileCell = '';
+        if (asset?.pdfUrl) {
+          try {
+            const res = await fetch(asset.pdfUrl, { signal: AbortSignal.timeout(20000) });
+            if (res.ok) {
+              const ab = await res.arrayBuffer();
+              zip.file(pdfName, ab);
+              pdfIncluded += 1;
+              pdfFileCell = pdfName;
+            } else {
+              pdfLinkedOnly += 1;
+              pdfFileCell = '(linked only)';
+            }
+          } catch (_) {
+            pdfLinkedOnly += 1;
+            pdfFileCell = '(linked only)';
+          }
+        } else {
+          pdfMissing += 1;
+          pdfFileCell = '(not available)';
+        }
+
+        csvRows.push([
+          i + 1,
+          caseName,
+          cit.text,
+          asset?.sourceUrl || cit.result?.clUrl || '',
+          textName,
+          htmlName,
+          pdfFileCell,
+          asset?.pdfUrl || '',
+        ].map(q).join(','));
+      }
+
+      zip.file('index.csv', csvRows.join('\n'));
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${this._safeBaseName(this.documentName(doc))}_selected_verified_cases.zip`;
+      a.click();
+
+      const parts = [
+        `${selectedCases.length} cases zipped`,
+        `${pdfIncluded} PDF embedded`,
+      ];
+      if (pdfLinkedOnly) parts.push(`${pdfLinkedOnly} PDF link-only`);
+      if (pdfMissing) parts.push(`${pdfMissing} PDF unavailable`);
+      showToast(parts.join(' · '));
     },
 
     _buildReportHtml(printMode = false, doc = null) {
@@ -6714,6 +7414,72 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
       }
     },
   };
+}
+
+function runLocalVerifierSelfTests() {
+  const tests = [
+    {
+      name: 'Bidirectional abbreviation normalization',
+      run: () => multiFactorNameSimilarity(
+        "Russomanno v. Comm'r of Internal Revenue, 123 F.3d 456",
+        'Russomanno v. Commissioner of Internal Revenue'
+      ) >= 0.85,
+    },
+    {
+      name: 'Smart apostrophe normalization',
+      run: () => multiFactorNameSimilarity(
+        'Busha v. SC Dep\u2019t of Mental Health, 99 F.4th 10',
+        'Busha v. SC Department of Mental Health'
+      ) >= 0.85,
+    },
+    {
+      name: 'Pincite stripping for structured reporter parse',
+      run: () => {
+        const parsed = parseReporterToken(citationWithoutPincite('114 Cal. App. 5th 426, 429, 436'));
+        return parsed?.volume === 114 && parsed?.page === 426;
+      },
+    },
+    {
+      name: 'Docket extraction from case text',
+      run: () => extractDocketNumberFromCitation('Smith v. Jones, Case No. 1:24-cv-10049 (S.D.N.Y. 2024)') === '1:24-cv-10049',
+    },
+    {
+      name: 'Tier classification threshold',
+      run: () => classifyFallbackTier(0.86) === 'likely_real' && classifyFallbackTier(0.5) === 'possible_match' && classifyFallbackTier(0.2) === 'not_found',
+    },
+  ];
+
+  const results = tests.map(t => {
+    try {
+      return { name: t.name, pass: !!t.run() };
+    } catch (e) {
+      return { name: t.name, pass: false, error: e.message };
+    }
+  });
+  const passed = results.filter(r => r.pass).length;
+  const failed = results.length - passed;
+  return { passed, failed, total: results.length, results };
+}
+
+window.citereviewRuntime = {
+  apiBase: API,
+  isLocalhost: IS_LOCALHOST,
+  verifierV2Enabled: ENABLE_VERIFIER_V2,
+};
+
+window.citereviewRunVerifierSelfTests = () => {
+  const summary = runLocalVerifierSelfTests();
+  const reportLines = [
+    `Verifier self-tests: ${summary.passed}/${summary.total} passed`,
+    ...summary.results.map(r => `${r.pass ? 'PASS' : 'FAIL'} - ${r.name}${r.error ? ` (${r.error})` : ''}`),
+  ];
+  console.log(reportLines.join('\n'));
+  return summary;
+};
+
+if (parseBoolFlag(getRuntimeFlag('run_self_tests', '0'), false)) {
+  const summary = window.citereviewRunVerifierSelfTests();
+  showToast(`Self-tests: ${summary.passed}/${summary.total} passed`);
 }
 
 // ── Mount ─────────────────────────────────────────────────────────────────────
