@@ -5573,6 +5573,16 @@ function app() {
     async analyzeSingle(cit) {
       if (cit.analysis?.status === 'analyzing') return;
       if (!this.canAnalyze) { showToast('Add an AI key in ⚙ Settings first'); return; }
+      const provider = getAISettings().provider || 'anthropic';
+      trackAnalyticsEvent('ai_support_start', {
+        mode: 'single',
+        provider,
+        citation_kind: cit.kind,
+        citation_text: cit.text,
+        document_name: this.documentName(this.currentDoc),
+        source_kind: this.currentDoc?.sourceKind,
+        target_count: 1,
+      });
       cit.analysis = { status: 'analyzing' };
       try {
         if (!cit.opinionText && cit.result?.clId) {
@@ -5581,8 +5591,30 @@ function app() {
           cit.opinionType = payload?.sourceType || null;
         }
         cit.analysis = await this._analyzeCitation(cit);
+        trackAnalyticsEvent('ai_support_complete', {
+          mode: 'single',
+          provider,
+          citation_kind: cit.kind,
+          citation_text: cit.text,
+          document_name: this.documentName(this.currentDoc),
+          source_kind: this.currentDoc?.sourceKind,
+          target_count: 1,
+          analyzed_count: 1,
+          result_status: cit.analysis?.status,
+          support_result: cit.analysis?.supported || '',
+        });
       } catch (e) {
         cit.analysis = { status: 'error', summary: friendlyAIError(e.message) };
+        trackAnalyticsEvent('ai_support_error', {
+          mode: 'single',
+          provider,
+          citation_kind: cit.kind,
+          citation_text: cit.text,
+          document_name: this.documentName(this.currentDoc),
+          source_kind: this.currentDoc?.sourceKind,
+          target_count: 1,
+          error_message: e?.message || 'unknown_error',
+        });
         showError(e.message);
       }
     },
@@ -5591,6 +5623,15 @@ function app() {
     async analyzeAll() {
       if (this.aiAnalyzing) return;
       if (!this.canAnalyze) { showToast('Add an AI API key in ⚙ Settings first'); return; }
+      const provider = getAISettings().provider || 'anthropic';
+      const toAnalyze = this.citations.filter(c => c.kind === 'case' && c.result?.status === 'verified');
+      trackAnalyticsEvent('ai_support_start', {
+        mode: 'all',
+        provider,
+        document_name: this.documentName(this.currentDoc),
+        source_kind: this.currentDoc?.sourceKind,
+        target_count: toAnalyze.length,
+      });
       this.aiAnalyzing = true;
       try {
         // Fetch opinions for verified cases that have a clId but no cached opinion text
@@ -5603,14 +5644,32 @@ function app() {
           }));
         }
         // Analyze only verified case citations
-        const toAnalyze = this.citations.filter(c => c.kind === 'case' && c.result?.status === 'verified');
         for (const cit of toAnalyze) cit.analysis = { status: 'analyzing' };
         for (const cit of toAnalyze) {
           cit.analysis = await this._analyzeCitation(cit);
           await this.yieldToUI();
         }
+        const doneCount = toAnalyze.filter(c => c.analysis?.status === 'done').length;
+        const errorCount = toAnalyze.filter(c => c.analysis?.status === 'error').length;
+        trackAnalyticsEvent('ai_support_complete', {
+          mode: 'all',
+          provider,
+          document_name: this.documentName(this.currentDoc),
+          source_kind: this.currentDoc?.sourceKind,
+          target_count: toAnalyze.length,
+          analyzed_count: doneCount,
+          error_count: errorCount,
+        });
         showToast('Memo analysis complete');
       } catch (e) {
+        trackAnalyticsEvent('ai_support_error', {
+          mode: 'all',
+          provider,
+          document_name: this.documentName(this.currentDoc),
+          source_kind: this.currentDoc?.sourceKind,
+          target_count: toAnalyze.length,
+          error_message: e?.message || 'unknown_error',
+        });
         showError(e.message);
       } finally {
         this.aiAnalyzing = false;
