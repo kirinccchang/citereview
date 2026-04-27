@@ -137,6 +137,33 @@ async function proxyGovInfo(request, env) {
 }
 
 
+// RECAP PDF proxy — fetches a document from storage.courtlistener.com so the
+// browser can use pdf.js on it without hitting CORS restrictions.
+// Only accepts paths starting with "recap/" to prevent open-proxy abuse.
+async function proxyRecapPdf(request, env) {
+  const { filepath } = await request.json();
+  if (!filepath || typeof filepath !== 'string' || !filepath.startsWith('recap/')) {
+    return err('Invalid recap filepath', 400, request, env);
+  }
+  const pdfUrl = `https://storage.courtlistener.com/${filepath}`;
+  try {
+    const res = await fetch(pdfUrl, { signal: AbortSignal.timeout(25000) });
+    if (!res.ok) return err(`PDF not available (${res.status})`, res.status, request, env);
+    const pdf = await res.arrayBuffer();
+    return new Response(pdf, {
+      status: 200,
+      headers: {
+        ...corsHeaders(request, env),
+        'Content-Type': 'application/pdf',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  } catch (e) {
+    return err(`PDF fetch failed: ${e.message}`, 502, request, env);
+  }
+}
+
+
 // URL liveness check
 async function proxyURLCheck(request, env) {
   const { url } = await request.json();
@@ -180,6 +207,7 @@ export default {
         '/api/proxy/lii': { bucket: 'lii', limit: 300, window: 60 },
         '/api/proxy/govinfo': { bucket: 'govinfo', limit: 180, window: 60 },
         '/api/proxy/url': { bucket: 'url', limit: 240, window: 60 },
+        '/api/proxy/recap-pdf': { bucket: 'recap-pdf', limit: 30, window: 60 },
       };
 
       const conf = limitByPath[path] || { bucket: 'proxy', limit: 120, window: 60 };
@@ -193,6 +221,7 @@ export default {
       if (path === '/api/proxy/lii')            return proxyLII(request, env);
       if (path === '/api/proxy/url')            return proxyURLCheck(request, env);
       if (path === '/api/proxy/govinfo')        return proxyGovInfo(request, env);
+      if (path === '/api/proxy/recap-pdf')      return proxyRecapPdf(request, env);
     } catch (e) {
       return err(`Internal error: ${e.message}`, 500, request, env);
     }
