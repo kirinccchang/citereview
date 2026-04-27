@@ -5036,59 +5036,42 @@ async function recapSearchByDocket(cit, signal) {
 // ── RECAP opinion text fetcher ────────────────────────────────────────────────
 // Given a docket ID, tries to retrieve plain text of the main opinion document.
 // Tries plain_text from the API first; falls back to fetching the PDF via pdf.js.
-async function fetchRecapOpinionText(docketId, citText, signal) {
-  try {
-    const docs = await fetchCourtListener('/api/rest/v4/recap-documents/', {
-      params: {
-        docket_entry__docket: docketId,
-        is_available: 'true',
-        document_type: 1,
-        fields: 'id,plain_text,filepath_local,date_created,description',
-        page_size: 20,
-      },
-      signal,
-    });
-    const rows = docs?.results || [];
-    if (!rows.length) return null;
+// Accepts the recap_documents array already embedded in search?type=r results.
+// Fetches PDFs via the worker proxy (/api/proxy/recap-pdf) to bypass CORS.
+async function fetchRecapOpinionText(recapDocs, citText, signal) {
+  if (!recapDocs?.length) return null;
 
-    const scored = rows.map(r => ({
-      r,
-      dateScore: recapDateProximity(citText, r.date_created || ''),
-      hasText: !!(r.plain_text && r.plain_text.trim()),
-    })).sort((a, b) => {
-      if (a.hasText !== b.hasText) return b.hasText ? 1 : -1;
-      return b.dateScore - a.dateScore;
-    });
+  const available = recapDocs.filter(d => d.is_available && d.filepath_local?.startsWith('recap/'));
+  if (!available.length) return null;
 
-    const best = scored[0];
-    if (best?.r?.plain_text?.trim()) {
-      return stripOpinionBoilerplate(best.r.plain_text);
-    }
+  // Prefer substantive documents (opinions, orders, decisions); fall back to any available.
+  let candidates = available.filter(d => isRecapDocSubstantive(d.description || ''));
+  if (!candidates.length) candidates = available.slice(0, 3);
 
-    if (best?.r?.filepath_local) {
-      try {
-        const pdfUrl = storageCourtListenerUrl(best.r.filepath_local);
-        if (!pdfUrl) return null;
-        const res = await fetch(pdfUrl, { signal: AbortSignal.timeout(25000) });
-        if (!res.ok) return null;
-        const ab = await res.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-        const pages = [];
-        for (let i = 1; i <= Math.min(pdf.numPages, 80); i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          pages.push(content.items.map(it => it.str).join(' '));
-        }
-        return stripOpinionBoilerplate(pages.join('\n\n')) || null;
-      } catch (_) {
-        return null;
+  for (const doc of candidates.slice(0, 5)) {
+    try {
+      const res = await fetch(`${API}/api/proxy/recap-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filepath: doc.filepath_local }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (!res.ok) continue;
+      const ab = await res.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+      const pages = [];
+      for (let i = 1; i <= Math.min(pdf.numPages, 80); i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        pages.push(content.items.map(it => it.str).join(' '));
       }
+      const text = stripOpinionBoilerplate(pages.join('\n\n'));
+      if (text && text.length > 200) return text;
+    } catch (_) {
+      continue;
     }
-
-    return null;
-  } catch (_) {
-    return null;
   }
+  return null;
 }
 
 // ── RECAP case-name search ────────────────────────────────────────────────────
@@ -5139,7 +5122,7 @@ async function recapSearchByCaseName(cit, signal) {
 
     let opinionText = null;
     try {
-      opinionText = await fetchRecapOpinionText(row.docket_id, cit.text, signal);
+      opinionText = await fetchRecapOpinionText(row.recap_documents || [], cit.text, signal);
     } catch (_) {}
 
     console.debug('[recap-name] opinionText found:', !!opinionText);
