@@ -2870,10 +2870,9 @@ const ENABLE_VERIFIER_V2 = parseBoolFlag(
 );
 // Searches RECAP by case name for WL/LEXIS citations and attempts to pull
 // opinion text from RECAP documents so they can enter the proposition-check stage.
-// Off by default; enable with ?recap_name_search=1 for local testing.
 const ENABLE_RECAP_NAME_SEARCH = parseBoolFlag(
-  getRuntimeFlag('recap_name_search', '0'),
-  false
+  getRuntimeFlag('recap_name_search', '1'),
+  true
 );
 let _citationWorker = null;
 let _citationWorkerDisabled = false;
