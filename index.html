@@ -5041,7 +5041,9 @@ async function clSearch(cit, signal) {
   // Add court filter when we can identify the circuit — prevents "Doe v. United States" in
   // one circuit from matching a different circuit's "Doe v. United States".
   const courtId = citationToClCourt(cit.text);
-  const searchParams = { q, type: 'o', order_by: 'score desc', stat_Published: 'on' };
+  // stat_Unknown covers RECAP-ingested district court opinions (precedential_status=Unknown).
+  // Without it, PACER-uploaded opinions are silently excluded from search results.
+  const searchParams = { q, type: 'o', order_by: 'score desc', stat_Published: 'on', stat_Unknown: 'on' };
   if (courtId) searchParams.court = courtId;
   try {
     const data = await fetchCourtListener('/api/rest/v4/search/', { params: searchParams, signal });
