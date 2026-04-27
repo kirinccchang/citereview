@@ -5101,46 +5101,55 @@ async function recapSearchByCaseName(cit, signal) {
     .replace(/,?\s*No\.\s*[\w-]+.*/i, '')
     .replace(/,?\s*\d+\s+[A-Z].*$/s, '')
     .trim();
-  if (!casePart || casePart.length < 6) return null;
+  console.debug('[recap-name] casePart:', JSON.stringify(casePart), 'from:', cit.text);
+  if (!casePart || casePart.length < 6) { console.debug('[recap-name] skipped (too short)'); return null; }
 
   try {
-    const data = await fetchCourtListener('/api/rest/v4/dockets/', {
+    // Use search?type=r (RECAP dockets/documents) — the /dockets/ endpoint
+    // does not support free-text case_name filtering.
+    const data = await fetchCourtListener('/api/rest/v4/search/', {
       params: {
-        case_name: casePart.slice(0, 100),
-        fields: 'id,case_name,absolute_url,date_filed,date_created',
+        q: casePart.slice(0, 100),
+        type: 'r',
         page_size: 10,
       },
       signal,
     });
     const rows = data?.results || [];
+    console.debug('[recap-name] dockets found:', rows.length, rows.map(r => r.caseName));
     if (!rows.length) return null;
 
-    const scored = rows.map(d => {
-      const nameSim = multiFactorNameSimilarity(cit.text, d.case_name || '');
-      const dateScore = recapDateProximity(cit.text, d.date_filed || d.date_created || '');
-      return { d, score: (0.75 * nameSim) + (0.25 * dateScore) };
+    // search?type=r uses camelCase: caseName, docket_id, docket_absolute_url, dateFiled
+    const scored = rows.map(r => {
+      const nameSim = multiFactorNameSimilarity(cit.text, r.caseName || '');
+      const dateScore = recapDateProximity(cit.text, r.dateFiled || '');
+      return { r, score: (0.75 * nameSim) + (0.25 * dateScore) };
     }).sort((a, b) => b.score - a.score);
 
     const best = scored[0];
+    console.debug('[recap-name] best score:', best?.score, best?.r?.caseName);
     if (!best || best.score < 0.4) return null;
 
-    const docket = best.d;
-    const clUrl = docket.absolute_url ? `https://www.courtlistener.com${docket.absolute_url}` : null;
+    const row = best.r;
+    const clUrl = row.docket_absolute_url ? `https://www.courtlistener.com${row.docket_absolute_url}` : null;
     const wl = wlCaseSearchUrl(citationWithoutPincite(cit.text).slice(0, 120), 'ALLCASES');
     const gs = scholarCaseUrl(casePart);
     const sim = Math.round(best.score * 1000) / 10;
+    const caseName = row.caseName || '';
 
     let opinionText = null;
     try {
-      opinionText = await fetchRecapOpinionText(docket.id, cit.text, signal);
+      opinionText = await fetchRecapOpinionText(row.docket_id, cit.text, signal);
     } catch (_) {}
+
+    console.debug('[recap-name] opinionText found:', !!opinionText);
 
     if (opinionText) {
       return {
         status: 'verified',
-        msg: `Found in RECAP — citation string not in index · ${docket.case_name}`,
+        msg: `Found in RECAP — citation string not in index · ${caseName}`,
         clUrl,
-        clId: docket.id,
+        clId: row.docket_id,
         confidence: 65,
         matchTier: 'possible_match',
         opinionText,
@@ -5153,16 +5162,17 @@ async function recapSearchByCaseName(cit, signal) {
 
     return {
       status: 'warning',
-      msg: `Found in RECAP by case name (no opinion text) · ${docket.case_name}`,
+      msg: `Found in RECAP by case name (no opinion text) · ${caseName}`,
       clUrl,
-      clId: docket.id,
+      clId: row.docket_id,
       confidence: 50,
       matchTier: 'possible_match',
       lexisUrl: wl,
       scholarUrl: gs,
       similarity: sim,
     };
-  } catch (_) {
+  } catch (e) {
+    console.debug('[recap-name] error:', e.message);
     return null;
   }
 }
