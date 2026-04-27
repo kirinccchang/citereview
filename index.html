@@ -2868,6 +2868,13 @@ const ENABLE_VERIFIER_V2 = parseBoolFlag(
   getRuntimeFlag('verifier_v2', IS_LOCALHOST ? '1' : '1'),
   true
 );
+// Searches RECAP by case name for WL/LEXIS citations and attempts to pull
+// opinion text from RECAP documents so they can enter the proposition-check stage.
+// Off by default; enable with ?recap_name_search=1 for local testing.
+const ENABLE_RECAP_NAME_SEARCH = parseBoolFlag(
+  getRuntimeFlag('recap_name_search', '0'),
+  false
+);
 let _citationWorker = null;
 let _citationWorkerDisabled = false;
 
@@ -5026,6 +5033,140 @@ async function recapSearchByDocket(cit, signal) {
   }
 }
 
+// ── RECAP opinion text fetcher ────────────────────────────────────────────────
+// Given a docket ID, tries to retrieve plain text of the main opinion document.
+// Tries plain_text from the API first; falls back to fetching the PDF via pdf.js.
+async function fetchRecapOpinionText(docketId, citText, signal) {
+  try {
+    const docs = await fetchCourtListener('/api/rest/v4/recap-documents/', {
+      params: {
+        docket_entry__docket: docketId,
+        is_available: 'true',
+        document_type: 1,
+        fields: 'id,plain_text,filepath_local,date_created,description',
+        page_size: 20,
+      },
+      signal,
+    });
+    const rows = docs?.results || [];
+    if (!rows.length) return null;
+
+    const scored = rows.map(r => ({
+      r,
+      dateScore: recapDateProximity(citText, r.date_created || ''),
+      hasText: !!(r.plain_text && r.plain_text.trim()),
+    })).sort((a, b) => {
+      if (a.hasText !== b.hasText) return b.hasText ? 1 : -1;
+      return b.dateScore - a.dateScore;
+    });
+
+    const best = scored[0];
+    if (best?.r?.plain_text?.trim()) {
+      return stripOpinionBoilerplate(best.r.plain_text);
+    }
+
+    if (best?.r?.filepath_local) {
+      try {
+        const pdfUrl = storageCourtListenerUrl(best.r.filepath_local);
+        if (!pdfUrl) return null;
+        const res = await fetch(pdfUrl, { signal: AbortSignal.timeout(25000) });
+        if (!res.ok) return null;
+        const ab = await res.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        const pages = [];
+        for (let i = 1; i <= Math.min(pdf.numPages, 80); i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          pages.push(content.items.map(it => it.str).join(' '));
+        }
+        return stripOpinionBoilerplate(pages.join('\n\n')) || null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// ── RECAP case-name search ────────────────────────────────────────────────────
+// Fallback for WL/LEXIS citations that have no docket number: searches RECAP
+// dockets by case name. If opinion text is available, returns status:'verified'
+// so the case can enter the proposition-check stage; otherwise status:'warning'.
+async function recapSearchByCaseName(cit, signal) {
+  const casePart = cit.text
+    .replace(/,?\s*\d{4}\s+WL\s+\d+.*/i, '')
+    .replace(/,?\s*No\.\s*[\w-]+.*/i, '')
+    .replace(/,?\s*\d+\s+[A-Z].*$/s, '')
+    .trim();
+  if (!casePart || casePart.length < 6) return null;
+
+  try {
+    const data = await fetchCourtListener('/api/rest/v4/dockets/', {
+      params: {
+        case_name: casePart.slice(0, 100),
+        fields: 'id,case_name,absolute_url,date_filed,date_created',
+        page_size: 10,
+      },
+      signal,
+    });
+    const rows = data?.results || [];
+    if (!rows.length) return null;
+
+    const scored = rows.map(d => {
+      const nameSim = multiFactorNameSimilarity(cit.text, d.case_name || '');
+      const dateScore = recapDateProximity(cit.text, d.date_filed || d.date_created || '');
+      return { d, score: (0.75 * nameSim) + (0.25 * dateScore) };
+    }).sort((a, b) => b.score - a.score);
+
+    const best = scored[0];
+    if (!best || best.score < 0.4) return null;
+
+    const docket = best.d;
+    const clUrl = docket.absolute_url ? `https://www.courtlistener.com${docket.absolute_url}` : null;
+    const wl = wlCaseSearchUrl(citationWithoutPincite(cit.text).slice(0, 120), 'ALLCASES');
+    const gs = scholarCaseUrl(casePart);
+    const sim = Math.round(best.score * 1000) / 10;
+
+    let opinionText = null;
+    try {
+      opinionText = await fetchRecapOpinionText(docket.id, cit.text, signal);
+    } catch (_) {}
+
+    if (opinionText) {
+      return {
+        status: 'verified',
+        msg: `Found in RECAP — citation string not in index · ${docket.case_name}`,
+        clUrl,
+        clId: docket.id,
+        confidence: 65,
+        matchTier: 'possible_match',
+        opinionText,
+        opinionTextSource: 'recap',
+        lexisUrl: wl,
+        scholarUrl: gs,
+        similarity: sim,
+      };
+    }
+
+    return {
+      status: 'warning',
+      msg: `Found in RECAP by case name (no opinion text) · ${docket.case_name}`,
+      clUrl,
+      clId: docket.id,
+      confidence: 50,
+      matchTier: 'possible_match',
+      lexisUrl: wl,
+      scholarUrl: gs,
+      similarity: sim,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 async function clSearch(cit, signal) {
   // Search using only the case name portion — including reporter/volume/page in the
   // query confuses CourtListener's full-text search and can surface wrong cases.
@@ -5338,6 +5479,10 @@ async function verifyCitation(cit, opts = {}) {
               scholarUrl: recapResult.scholarUrl || gs,
             };
           }
+        }
+        if (ENABLE_RECAP_NAME_SEARCH) {
+          const nameResult = await recapSearchByCaseName(cit, AbortSignal.timeout(25000));
+          if (nameResult) return nameResult;
         }
         return proprietaryWarning(cit.text) || searchResult;
       }
@@ -5986,9 +6131,16 @@ function app() {
         const batch = targets.slice(i, i + BATCH);
         batch.forEach(c => { c.checking = true; });
         await Promise.all(batch.map(async c => {
-          c.result = await verifyCitation(c, {
+          const result = await verifyCitation(c, {
             lookupHit: prefetchedLookupHits.get(c.id) || null,
           });
+          // RECAP name-search may embed opinionText in the result so the
+          // proposition-check stage can see it without a second CL API call.
+          if (result.opinionText && !c.opinionText) {
+            c.opinionText = result.opinionText;
+            delete result.opinionText;
+          }
+          c.result = result;
           c.checking = false;
         }));
       }
@@ -7467,6 +7619,7 @@ window.citereviewRuntime = {
   apiBase: API,
   isLocalhost: IS_LOCALHOST,
   verifierV2Enabled: ENABLE_VERIFIER_V2,
+  recapNameSearchEnabled: ENABLE_RECAP_NAME_SEARCH,
 };
 
 window.citereviewRunVerifierSelfTests = () => {
