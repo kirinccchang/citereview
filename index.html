@@ -5084,8 +5084,7 @@ async function recapSearchByCaseName(cit, signal) {
     .replace(/,?\s*No\.\s*[\w-]+.*/i, '')
     .replace(/,?\s*\d+\s+[A-Z].*$/s, '')
     .trim();
-  console.debug('[recap-name] casePart:', JSON.stringify(casePart), 'from:', cit.text);
-  if (!casePart || casePart.length < 6) { console.debug('[recap-name] skipped (too short)'); return null; }
+  if (!casePart || casePart.length < 6) return null;
 
   try {
     // Use search?type=r (RECAP dockets/documents) — the /dockets/ endpoint
@@ -5099,7 +5098,6 @@ async function recapSearchByCaseName(cit, signal) {
       signal,
     });
     const rows = data?.results || [];
-    console.debug('[recap-name] dockets found:', rows.length, rows.map(r => r.caseName));
     if (!rows.length) return null;
 
     // search?type=r uses camelCase: caseName, docket_id, docket_absolute_url, dateFiled
@@ -5110,7 +5108,6 @@ async function recapSearchByCaseName(cit, signal) {
     }).sort((a, b) => b.score - a.score);
 
     const best = scored[0];
-    console.debug('[recap-name] best score:', best?.score, best?.r?.caseName);
     if (!best || best.score < 0.4) return null;
 
     const row = best.r;
@@ -5124,8 +5121,6 @@ async function recapSearchByCaseName(cit, signal) {
     try {
       opinionText = await fetchRecapOpinionText(row.recap_documents || [], cit.text, signal);
     } catch (_) {}
-
-    console.debug('[recap-name] opinionText found:', !!opinionText);
 
     if (opinionText) {
       return {
@@ -5155,7 +5150,6 @@ async function recapSearchByCaseName(cit, signal) {
       similarity: sim,
     };
   } catch (e) {
-    console.debug('[recap-name] error:', e.message);
     return null;
   }
 }
