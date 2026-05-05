@@ -29,6 +29,7 @@
 {"@context":"https://schema.org","@type":"WebApplication","name":"cite.review","url":"https://cite.review/","description":"Free, open-source legal citation verifier. Catches AI-hallucinated cases and checks whether cited authorities actually support the stated proposition.","applicationCategory":"LegalApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Kirin Chang","url":"https://kirinchang.com"}}
 </script>
 <script src="./analytics.js"></script>
+<link rel="modulepreload" href="https://unpkg.com/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -2068,6 +2069,12 @@
     color: var(--text-faint); padding: 4px 8px; background: var(--preview-bg);
     border-bottom: 1px solid var(--border);
   }
+  .evidence-source-docs {
+    font-size: 10px; color: var(--text-faint); padding: 2px 8px 4px;
+    background: var(--preview-bg); border-top: none; border-bottom: 1px solid var(--border);
+    margin-top: -1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .evidence-text {
     padding: 7px 9px; color: var(--text2); font-size: 11px; line-height: 1.65;
     max-height: 120px; overflow-y: auto; word-break: break-word; white-space: pre-wrap;
@@ -2664,10 +2671,10 @@
                           x-text="cit.location === 'footnote' ? 'footnote' : 'paragraph'"></span>
                         <a x-show="cit.result?.clUrl" :href="cit.result?.clUrl"
                           target="_blank" class="cl-link">CourtListener ↗</a>
-                        <a x-show="cit.result?.clId" href="#"
+                        <a x-show="cit.kind === 'case' && cit.result?.clId" href="#"
                           @click.prevent="viewOpinion(cit)"
                           class="cl-link" style="font-weight:500">View opinion ↗</a>
-                        <span x-show="cit.kind === 'case' && cit.result?.status === 'verified' && (cit.result?.clId || cit.result?.clUrl)" class="download-links">
+                        <span x-show="(cit.kind === 'case' && cit.result?.status === 'verified' && (cit.result?.clId || cit.result?.clUrl)) || (cit.kind === 'docket' && cit.result?.status === 'verified' && (cit.opinionText || cit.result?.recapDocsInfo?.length))" class="download-links">
                           <span class="download-label">Download:</span>
                           <a href="#" @click.prevent="downloadOpinionText(cit)" class="cl-link">Text</a>
                           <span class="download-sep">|</span>
@@ -2728,9 +2735,7 @@
                                     <div class="evidence-label">Memo context</div>
                                     <template x-if="!cit._showMemoContext">
                                       <div class="evidence-text-preview"
-                                        x-text="(cit.analysis.memoContext || '').length > 260
-                                          ? (cit.analysis.memoContext || '').slice(0, 260) + '…'
-                                          : (cit.analysis.memoContext || '')"></div>
+                                        x-html="highlightCitationPreview(cit.analysis.memoContext, cit.text, 260)"></div>
                                     </template>
                                     <template x-if="cit._showMemoContext">
                                       <div class="evidence-text" x-html="highlightCitation(cit.analysis.memoContext, cit.text)"></div>
@@ -2744,6 +2749,11 @@
                                     <div class="evidence-label"
                                       x-text="cit.analysis.bestPassage ? 'Key passage (verbatim from opinion)' : (cit.opinionText ? 'Key passage extraction incomplete' : 'Opinion text unavailable')">
                                     </div>
+                                    <template x-if="cit.result?.recapDocsInfo?.length">
+                                      <div class="evidence-source-docs"
+                                        x-text="'Sources: ' + cit.result.recapDocsInfo.map(d => d.description || 'document').join(' · ')">
+                                      </div>
+                                    </template>
                                     <div class="evidence-text"
                                       x-text="cit.analysis.bestPassage || (cit.opinionText
                                         ? 'Opinion text is available, but this run could not isolate a stable verbatim key passage. Click Check support again to re-run extraction.'
@@ -2753,22 +2763,43 @@
                               </template>
                               <div x-show="cit.analysis.concerns" class="analysis-concerns"
                                 x-text="'⚠ ' + cit.analysis.concerns"></div>
-                              <!-- Parenthetical quote verification result -->
+                              <!-- Quoted proposition verification result -->
                               <template x-if="cit.analysis.parentheticalCheck && cit.analysis.parentheticalCheck.verified === true">
-                                <div class="paren-check ok">✓ Parenthetical quote verified verbatim in opinion</div>
+                                <div class="paren-check ok">✓ Quoted proposition verified verbatim in opinion</div>
                               </template>
                               <template x-if="cit.analysis.parentheticalCheck && cit.analysis.parentheticalCheck.verified === false">
                                 <div class="paren-check fail">
-                                  <div>⚠ Parenthetical quote not found verbatim — wording may differ from the actual opinion</div>
+                                  <div>⚠ Quoted proposition not found verbatim — wording may differ from the actual opinion</div>
                                   <div class="paren-quoted" x-text="'Cited as: \u201c' + cit.analysis.parentheticalCheck.quote.slice(0,160) + (cit.analysis.parentheticalCheck.quote.length > 160 ? '\u2026' : '') + '\u201d'"></div>
                                   <div style="opacity:0.7;margin-top:2px">Compare with "Key passage" above for the actual text.</div>
                                 </div>
                               </template>
                               <template x-if="cit.analysis.parentheticalCheck && cit.analysis.parentheticalCheck.verified === null">
-                                <div class="paren-check skip">ℹ Parenthetical quote detected — opinion text unavailable to verify verbatim accuracy</div>
+                                <div class="paren-check skip">ℹ Quoted proposition detected — opinion text unavailable to verify verbatim accuracy</div>
                               </template>
                               <template x-if="cit.analysis.parentheticalConcern">
                                 <div class="analysis-concerns" x-text="'⚠ Quote concern: ' + cit.analysis.parentheticalConcern"></div>
+                              </template>
+                              <template x-if="cit.analysis.pinciteCheck">
+                                <div class="paren-check"
+                                  :class="cit.analysis.pinciteCheck.status === 'verified' ? 'ok' : (cit.analysis.pinciteCheck.status === 'plausible' ? 'skip' : 'fail')">
+                                  <div>
+                                    <span x-text="cit.analysis.pinciteCheck.status === 'verified' ? '✓ Pincite' : (cit.analysis.pinciteCheck.status === 'plausible' ? 'ℹ Pincite' : '⚠ Pincite')"></span>
+                                    <span x-text="' (' + cit.analysis.pinciteCheck.status + ')'"></span>
+                                    <span x-text="cit.analysis.pinciteCheck.raw ? (': ' + cit.analysis.pinciteCheck.raw) : ''"></span>
+                                  </div>
+                                  <div style="opacity:0.85" x-text="cit.analysis.pinciteCheck.note"></div>
+                                  <template x-if="cit.analysis.pinciteCheck.evidencePreview">
+                                    <div style="margin-top:6px;opacity:0.92">
+                                      <div style="font-weight:600;font-size:12px;margin-bottom:2px"
+                                        x-text="cit.analysis.pinciteCheck.evidenceFromPdf ? 'Closest PDF extract near cited page:' : cit.analysis.pinciteCheck.evidenceVerbatimMatched ? 'Passage found on cited page:' : 'Passage searched on cited page (not verbatim matched):'"></div>
+                                      <div style="font-size:12px;line-height:1.35;padding-left:8px;border-left:2px solid #d6d3d1;font-style:italic">
+                                        <span x-text="cit.analysis.pinciteCheck.evidencePreview"></span>
+                                      </div>
+                                    </div>
+                                  </template>
+                                  <div x-show="cit.analysis.pinciteCheck.pdfPathAvailable" style="opacity:0.7;margin-top:2px">PDF path available — direct PDF page alignment can further improve pincite verification.</div>
+                                </div>
                               </template>
                               <template x-if="cit.opinionText">
                                 <div class="full-text-section">
@@ -2793,7 +2824,7 @@
                         x-show="!cit.checking"
                         @click="reverify(cit)"
                         title="Re-verify this citation">↻</button>
-                      <template x-if="cit.kind === 'case' && cit.result?.status === 'verified'">
+                      <template x-if="isSupportCheckEligible(cit)">
                         <button class="btn-reverify btn-cit-analyze"
                           :disabled="cit.analysis?.status === 'analyzing' || !canAnalyze || batchRunning"
                           :style="canAnalyze ? '' : 'opacity:0.35;cursor:not-allowed'"
@@ -3015,6 +3046,23 @@ async function fetchCourtListener(endpoint, { params = null, postBody = null, si
   const key = getClKey().trim();
   if (!key) throw new Error('No CourtListener API token configured.');
 
+  const fetchViaProxy = async () => {
+    const res = await fetch(`${API}/api/proxy/courtlistener`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint, params, postBody, key }),
+      signal,
+    });
+    let data = null;
+    try { data = await res.json(); }
+    catch (_) { throw new Error(`CourtListener proxy returned non-JSON (HTTP ${res.status})`); }
+    if (!res.ok) {
+      const msg = data?.detail || data?.error || `CourtListener proxy failed (HTTP ${res.status})`;
+      throw new Error(msg);
+    }
+    return data;
+  };
+
   const url = new URL(`https://www.courtlistener.com${endpoint}`);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
@@ -3034,13 +3082,19 @@ async function fetchCourtListener(endpoint, { params = null, postBody = null, si
   };
   if (postBody) init.body = JSON.stringify(postBody);
 
-  const res = await fetch(url.toString(), init);
-  const data = await res.json();
-  if (!res.ok) {
-    const msg = data?.detail || data?.error || `CourtListener request failed (HTTP ${res.status})`;
-    throw new Error(msg);
+  try {
+    const res = await fetch(url.toString(), init);
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = data?.detail || data?.error || `CourtListener request failed (HTTP ${res.status})`;
+      throw new Error(msg);
+    }
+    return data;
+  } catch (err) {
+    // Some CL API endpoints are intermittently blocked by browser CORS policy
+    // even with valid credentials; retry once through our worker proxy.
+    return fetchViaProxy();
   }
-  return data;
 }
 
 function getAISettings() {
@@ -3191,7 +3245,45 @@ function normalizeWs(text) {
 }
 
 function isOpinionBoilerplatePassage(text) {
-  return /slip opinion|syllabus note|reporter of decisions|detroit timber|the syllabus constitutes no part|prepared by the reporter of decisions|for the convenience of the reader/i.test(String(text || ''));
+  const s = String(text || '');
+  if (/slip opinion|syllabus note|reporter of decisions|detroit timber|the syllabus constitutes no part|prepared by the reporter of decisions|for the convenience of the reader/i.test(s)) return true;
+  // Reject all-caps section headings (e.g. "STATEMENT OF DECISION ON EMERGENCY MOTION...").
+  // If ≥85% of letters are uppercase the text is a heading, not a prose sentence.
+  const letters = s.match(/[a-zA-Z]/g) || [];
+  if (letters.length >= 10) {
+    const upperCount = letters.filter(c => c >= 'A' && c <= 'Z').length;
+    if (upperCount / letters.length > 0.85) return true;
+  }
+  return false;
+}
+
+/**
+ * Given memo-context text (the surrounding memo sentences where the citation appears),
+ * finds the matching proposition in the full opinion text by looking for long n-gram
+ * overlaps. Returns the extracted sentence from the opinion, or null.
+ */
+function findContextPhraseInOpinion(contextText, opinionText) {
+  if (!contextText || !opinionText) return null;
+  const normOp = normalizeWs(opinionText).toLowerCase();
+  const ctxWords = normalizeWs(contextText).toLowerCase().split(/\s+/).filter(w => /[a-z]{3,}/.test(w));
+  if (ctxWords.length < 5) return null;
+  for (const size of [8, 6, 5]) {
+    for (let i = 0; i <= ctxWords.length - size; i++) {
+      const phrase = ctxWords.slice(i, i + size).join(' ');
+      const idx = normOp.indexOf(phrase);
+      if (idx < 0) continue;
+      // Expand to sentence boundaries in the normalized opinion.
+      const before = normOp.slice(Math.max(0, idx - 400), idx);
+      const dotBefore = before.lastIndexOf('. ');
+      const sentStart = dotBefore >= 0 ? (Math.max(0, idx - 400) + dotBefore + 2) : Math.max(0, idx - 400);
+      const after = normOp.slice(idx + phrase.length);
+      const dotAfter = after.search(/\.\s/);
+      const sentEnd = dotAfter >= 0 ? idx + phrase.length + dotAfter + 1 : Math.min(normOp.length, idx + phrase.length + 400);
+      const passage = normalizeWs(opinionText).slice(sentStart, sentEnd).trim();
+      if (passage.length >= 30 && passage.length <= 900) return passage;
+    }
+  }
+  return null;
 }
 
 function verifyVerbatimPassage(candidate, opinionText) {
@@ -3280,13 +3372,70 @@ function highlightCitation(text, citText) {
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   if (!text) return '';
   if (!citText) return esc(text);
+
+  // Exact match first.
   const idx = text.indexOf(citText);
-  if (idx < 0) return esc(text);
-  return esc(text.slice(0, idx)) + '<mark>' + esc(citText) + '</mark>' + esc(text.slice(idx + citText.length));
+  if (idx >= 0) {
+    return esc(text.slice(0, idx)) + '<mark>' + esc(citText) + '</mark>' + esc(text.slice(idx + citText.length));
+  }
+
+  // Fuzzy fallback: normalize punctuation+whitespace in both strings and find
+  // the match position, then span from that start to the corresponding end in
+  // the original text. Handles PDF-spaced docket numbers like "No. 20 - 10712".
+  const norm = s => s.replace(/[.,;:()\[\]]+/g, ' ').replace(/\s+/g, ' ').toLowerCase().trim();
+  const normText = norm(text);
+  const normCit  = norm(citText);
+  if (normCit.length < 5) return esc(text);
+
+  // Build a regex from significant tokens in normCit to tolerate minor spacing diffs.
+  const allTokens = normCit.split(' ').filter(t => t.length > 1).map(t => t.replace(/[-–—]/g, '[-–— ]*'));
+  if (!allTokens.length) return esc(text);
+
+  const tryTokenMatch = (toks) => {
+    if (!toks.length) return null;
+    const pat = new RegExp(toks.join('[^a-z0-9]*'), 'i');
+    return pat.exec(text);
+  };
+
+  // Try full token set first.
+  let m = tryTokenMatch(allTokens);
+  if (!m) {
+    // Docket citations use "Case No." but source text often just says "No." — drop "case".
+    const noCase = allTokens.filter(t => !/^case$/i.test(t));
+    m = tryTokenMatch(noCase);
+  }
+  if (!m) {
+    // Last resort: just the case-name portion (first 5 tokens).
+    m = tryTokenMatch(allTokens.slice(0, Math.min(allTokens.length, 5)));
+  }
+  if (!m) return esc(text);
+  return esc(text.slice(0, m.index)) + '<mark>' + esc(m[0]) + '</mark>' + esc(text.slice(m.index + m[0].length));
+}
+
+function highlightCitationPreview(text, citText, maxLen = 260) {
+  const raw = String(text || '');
+  if (!raw) return '';
+
+  // Keep the matched citation visible in preview when possible.
+  let preview = raw;
+  if (raw.length > maxLen) {
+    const needle = String(citText || '').trim();
+    const idx = needle ? raw.toLowerCase().indexOf(needle.toLowerCase()) : -1;
+    if (idx >= 0) {
+      const half = Math.floor(maxLen / 2);
+      const start = Math.max(0, idx - half);
+      const end = Math.min(raw.length, start + maxLen);
+      preview = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
+    } else {
+      preview = raw.slice(0, maxLen) + '…';
+    }
+  }
+  return highlightCitation(preview, citText);
 }
 // Alpine x-html expressions run via new Function() — module-scope vars are not on window
 // and would throw ReferenceError. Expose helpers needed in attribute expressions.
 window.highlightCitation = highlightCitation;
+window.highlightCitationPreview = highlightCitationPreview;
 
 // Extract the paragraph(s) containing the citation from the source text.
 // Paragraph-based extraction is strictly better than a fixed character window:
@@ -3313,7 +3462,35 @@ function extractMemoContext(sourceText, citOrText) {
       const normSrc = sourceText.replace(/\s+/g, ' ');
       const normCit = citText.replace(/\s+/g, ' ');
       const ni = normSrc.indexOf(normCit);
-      if (ni < 0) return null;
+      if (ni < 0) {
+        // Priority 4 (docket citations): normalized text may differ from source
+        // (emit always adds "Case No." but source may say just "No.").
+        // Fall back to locating the docket number itself.
+        const docketNum = citOrText?.docketNumber;
+        if (docketNum) {
+          // PDF extraction often inserts spaces inside numbers: "20 -  10712".
+          // Allow optional whitespace around hyphens and between digit groups.
+          const escaped = docketNum
+            .replace(/[-–—]/g, '\\s*[-–—]\\s*')
+            .replace(/(\d{2,})/, (m) => m.split('').join('\\s*'));
+          const re = new RegExp('(?:[Cc]ase\\s+)?[Nn]o\\.?\\s*' + escaped, 'i');
+          const dnMatch = normSrc.search(re);
+          if (dnMatch >= 0) {
+            const s4 = Math.max(0, dnMatch - 400), e4 = Math.min(normSrc.length, dnMatch + docketNum.length + 300);
+            return (s4 > 0 ? '…' : '') + normSrc.slice(s4, e4) + (e4 < normSrc.length ? '…' : '');
+          }
+          // Priority 4b: search by case name fragment (first word group before comma)
+          const caseNameFrag = (citOrText?.text || '').split(',')[0].trim().replace(/\s+/g, ' ');
+          if (caseNameFrag.length > 8) {
+            const fragIdx = normSrc.indexOf(caseNameFrag);
+            if (fragIdx >= 0) {
+              const s4b = Math.max(0, fragIdx - 400), e4b = Math.min(normSrc.length, fragIdx + caseNameFrag.length + 300);
+              return (s4b > 0 ? '…' : '') + normSrc.slice(s4b, e4b) + (e4b < normSrc.length ? '…' : '');
+            }
+          }
+        }
+        return null;
+      }
       const s = Math.max(0, ni - 400), e = Math.min(normSrc.length, ni + normCit.length + 400);
       return (s > 0 ? '…' : '') + normSrc.slice(s, e) + (e < normSrc.length ? '…' : '');
     }
@@ -3347,19 +3524,148 @@ function extractMemoContext(sourceText, citOrText) {
   // Add a small margin so very short paragraphs still get a bit of surrounding context.
   const s = Math.max(0, paraStart - 120);
   const e = Math.min(sourceText.length, paraEnd + 120);
-  const snippet = sourceText.slice(s, e).trim();
+  let snippet = sourceText.slice(s, e).trim();
+
+  // OCR/PDF text may collapse many paragraphs into one block, producing very
+  // long, low-signal memo context. Keep context focused near the citation.
+  const MAX_CONTEXT_CHARS = 1400;
+  if (snippet.length > MAX_CONTEXT_CHARS) {
+    // Center the fallback window around the citation span.
+    const focusStart = Math.max(0, spanIdx - 520);
+    const focusEnd = Math.min(sourceText.length, spanIdx + spanLen + 880);
+    let focused = sourceText.slice(focusStart, focusEnd);
+
+    // Trim to nearest sentence-ish boundaries within the focused window.
+    const relIdx = Math.max(0, Math.min(focused.length - 1, spanIdx - focusStart));
+    let left = focused.lastIndexOf('. ', relIdx);
+    if (left < 0) left = focused.lastIndexOf('\n', relIdx);
+    left = left >= 0 ? left + 1 : 0;
+
+    let right = focused.indexOf('. ', relIdx + Math.max(1, spanLen));
+    if (right < 0) right = focused.indexOf('\n', relIdx + Math.max(1, spanLen));
+    right = right >= 0 ? Math.min(focused.length, right + 1) : focused.length;
+
+    const bounded = focused.slice(left, right).trim();
+    snippet = bounded.length >= 240 ? bounded : focused.trim();
+  }
 
   return (s > 0 ? '…' : '') + snippet + (e < sourceText.length ? '…' : '');
+}
+
+function extractQuotedPropositionNearCitation(sourceText, citOrText) {
+  const citText = typeof citOrText === 'string' ? citOrText : (citOrText?.text || '');
+  if (!citText || !sourceText) return null;
+
+  let spanIdx = -1;
+  const rawStart = citOrText?.raw?.fullSpanStart;
+  if (typeof rawStart === 'number' && rawStart >= 0 && rawStart < sourceText.length) {
+    spanIdx = rawStart;
+  } else {
+    spanIdx = sourceText.indexOf(citText);
+  }
+  if (spanIdx < 0) return null;
+
+  const before = sourceText.slice(Math.max(0, spanIdx - 500), spanIdx);
+  const matches = [...before.matchAll(/["\u201c]([^"\u201d]{12,400})["\u201d]/g)];
+  if (!matches.length) return null;
+
+  const last = matches[matches.length - 1];
+  const quote = String(last[1] || '').trim();
+  const trailing = before.slice((last.index || 0) + last[0].length);
+  if (trailing.length > 40 || /[A-Za-z]{6,}/.test(trailing)) return null;
+  return quote || null;
+}
+
+// Returns true if a text block looks like a counsel/appearances section:
+// contains law-firm identifiers + "Counsel for/to" but no substantive legal prose.
+function isAppearancesBlock(block) {
+  if (!block) return false;
+  const b = block.replace(/^\d+\s+/, ''); // strip leading page number
+  if (/^APPEARANCES?:/i.test(b)) return true;
+  const hasFirm = /\b(?:LLP|L\.L\.P\.|P\.C\.|P\.A\.|LLC|PLLC)\b/i.test(b);
+  const hasCounsel = /\bCounsel (?:for|to)\b/i.test(b);
+  const hasPhone = /\(\d{3}\)\s*\d{3}[-.\s]\d{4}/.test(b);
+  const hasEmail = /\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b/i.test(b);
+  const hasProse = /\bthe court\b|\bhereby ordered\b|\bwhereas\b|\bfinds that\b|\bholds that\b/i.test(b);
+  return (hasFirm || hasPhone || hasEmail) && hasCounsel && !hasProse;
+}
+
+// Skips leading paragraph blocks that are appearances/counsel sections.
+// Operates on already-page-separated text (blocks split by \n\n).
+function skipLeadingAppearancesBlocks(text) {
+  if (!text) return text;
+  const blocks = text.split(/\n\n+/);
+  let start = 0;
+  for (let i = 0; i < Math.min(blocks.length - 1, 6); i++) {
+    if (isAppearancesBlock(blocks[i])) start = i + 1;
+    else break;
+  }
+  if (start === 0) return text;
+  const rest = blocks.slice(start).join('\n\n').trim();
+  return rest.length > 200 ? rest : text;
 }
 
 function stripOpinionBoilerplate(text) {
   let out = String(text || '').replace(/\r/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   if (!out) return '';
 
+  // Normalize letter-spaced uppercase words from PDF font rendering:
+  // "A P P E A R A N C E S" → "APPEARANCES", "O R D E R" → "ORDER", etc.
+  // pdf.js extracts these as individual letters with spaces when the font uses tracking.
+  out = out.replace(/\b(?:[A-Z][^\S\n]+){3,}[A-Z]\b/g, m => m.replace(/[^\S\n]+/g, ''));
+
+  // Strip PACER page-metadata lines embedded in PDF-extracted text.
+  // Pattern: "Case X-XXXXX Doc N Filed MM/DD/YY Entered MM/DD/YY HH:MM:SS Desc Main Document Page N of N"
+  out = out.replace(/\bDoc\s+\d+\s+Filed\s+\d{1,2}\/\d{1,2}\/\d{2,4}[^\n]{0,200}Page\s+\d+\s+of\s+\d+\b/g, '')
+           .replace(/\n{3,}/g, '\n\n').trim();
+
+  // SCOTUS lead marker (slip opinions).
   const leadMarker = out.match(/(?:Justice\s+[A-Z][A-Za-z-]+(?:\s+[A-Z][A-Za-z-]+)?\s+delivered\s+the\s+opinion\s+of\s+the\s+Court|Opinion\s+of\s+the\s+Court|CHIEF\s+JUSTICE\s+[A-Z][A-Za-z-]+\s+delivered\s+the\s+opinion\s+of\s+the\s+Court)/i);
   if (leadMarker && typeof leadMarker.index === 'number' && leadMarker.index > 0 && leadMarker.index < 30000) {
     out = out.slice(leadMarker.index).trim();
   }
+
+  // Federal court document headers (bankruptcy, district, court of appeals).
+  // pdf.js joins text items within a page with spaces (no internal \n).
+  // Pages are separated by \n\n. Strategy: skip pages that are still header content.
+  const isFederalCourtDoc =
+    /^UNITED STATES (?:BANKRUPTCY|DISTRICT|COURT OF APPEALS)/i.test(out) ||
+    /^FILED\s+[A-Z]/i.test(out) ||
+    /^NOT FOR PUBLICATION/i.test(out) ||
+    // Also trigger when an appearances block is visible near the start (RECAP PDFs).
+    /^\d*\s*APPEARANCES?:/im.test(out.slice(0, 1200));
+
+  if (isFederalCourtDoc) {
+    let remaining = out;
+    for (let i = 0; i < 8; i++) {
+      const pb = remaining.indexOf('\n\n');
+      if (pb < 0) break;
+      const next = remaining.slice(pb + 2).trim();
+      if (!next || next.length < 100) break;
+      const preview = next.slice(0, 400);
+      // Strip leading page number from preview for pattern matching.
+      const previewNoPg = preview.replace(/^\d+\s+/, '');
+      // Does this chunk still look like boilerplate/header?
+      const isHeader =
+        /^FILED\s+[A-Z]/i.test(previewNoPg) ||
+        /^APPEARANCES?:/i.test(previewNoPg) ||          // bare "APPEARANCES:"
+        /^\d+\s+APPEARANCES?:/i.test(preview) ||        // page-prefixed "2 APPEARANCES:"
+        /^UNITED STATES/i.test(previewNoPg) ||
+        /^NOT FOR PUBLICATION/i.test(previewNoPg) ||
+        /^FOR (?:THE )?(?:DEBTOR|CREDITOR|PETITIONER|PLAINTIFF|DEFENDANT)/i.test(previewNoPg) ||
+        isAppearancesBlock(preview);
+      remaining = next;
+      if (!isHeader) break;
+    }
+    if (remaining.length > 200 && remaining !== out) out = remaining;
+  }
+
+  // Secondary pass: skip any appearances block that survived the page loop.
+  // Handles cases where isFederalCourtDoc was false or appearances appear mid-text.
+  out = skipLeadingAppearancesBlocks(out);
+
+  // Strip a bare leading page number left after skipping header pages (e.g. "3 THE HONORABLE…").
+  out = out.replace(/^\d{1,3}\s+(?=[A-Z])/, '').trim();
 
   out = out
     .replace(/^\(Slip Opinion\)[\s\S]{0,4000}?Syllabus\s+NOTE:[\s\S]{0,4000}?(?=\n\s*(?:Justice|CHIEF JUSTICE|Opinion of the Court))/i, '')
@@ -3976,6 +4282,41 @@ function recoverCleanInReName(text) {
   return `In re ${name}`;
 }
 
+function recoverInReWlCaseNameFromContext(displayText, citation, sourceText = '') {
+  const m = String(displayText || '').match(/^In\s+re\s+(\d{4})\s+WL\s+(\d+)\b/i);
+  if (!m) return displayText;
+  const year = m[1];
+  const wlNo = m[2];
+  const pos = typeof citation?.fullSpanStart === 'number' ? citation.fullSpanStart : -1;
+  if (!sourceText) return displayText;
+
+  // If span offset is unavailable, scan whole source text as fallback.
+  const window = pos >= 0
+    ? sourceText.slice(Math.max(0, pos - 520), Math.min(sourceText.length, pos + 220))
+    : sourceText.slice(0, 80000);
+  const oneLine = window.replace(/\s+/g, ' ');
+
+  // Prefer an explicit nearby "In re {name}, ... YEAR WL N" match.
+  const nearMatches = [...oneLine.matchAll(/\bIn\s+re\s+([^,;]{2,140}?)\s*,?\s*(?:No\.\s*[^,;]{1,90},\s*)?(\d{4})\s*WL\s*(\d+)\b/ig)];
+  for (let i = nearMatches.length - 1; i >= 0; i--) {
+    const nm = nearMatches[i];
+    if (String(nm[2]) !== year || String(nm[3]) !== wlNo) continue;
+    const rawName = String(nm[1] || '').trim().replace(/[\s,.;:]+$/, '');
+    if (!rawName || /^\d{4}\s+WL\s+\d+$/i.test(rawName)) continue;
+    return `In re ${rawName}, ${year} WL ${wlNo}`;
+  }
+
+  const tail = oneLine.slice(0, Math.max(0, oneLine.lastIndexOf(m[0])));
+  // Fallback: nearest prior "In re {name}" token before malformed "In re YYYY WL N".
+  const prevNames = [...tail.matchAll(/\bIn\s+re\s+([^,;]{2,140}?)(?=\s*(?:,|\.|;|No\.|$))/ig)];
+  const prev = prevNames.length ? prevNames[prevNames.length - 1] : null;
+  if (!prev) return displayText;
+
+  const rawName = String(prev[1] || '').trim().replace(/[\s,.;:]+$/, '');
+  if (!rawName || /^\d{4}\s+WL\s+\d+$/i.test(rawName)) return displayText;
+  return `In re ${rawName}, ${year} WL ${wlNo}`;
+}
+
 function classifyCitations(rawCitations, sourceText = '') {
   // ── Pass 1: resolve display texts ────────────────────────────────────────
   const candidates = rawCitations.map(c => {
@@ -4023,6 +4364,10 @@ function classifyCitations(rawCitations, sourceText = '') {
       /^(?:See also|See|But see|Cf\.|Accord|Compare|Contra|E\.g\.)[,]?\s+(?=[A-Z])/,
       ''
     ).trim();
+
+    // Repair malformed OCR/eyecite output like "In re 2022 WL 17985951" by
+    // recovering the missing case name from nearby source context.
+    displayText = recoverInReWlCaseNameFromContext(displayText, c, sourceText);
 
     const parties = partyName(c);
     const vMatch = displayText.match(/^(.*?)\bv\.\s/i);
@@ -4315,16 +4660,22 @@ function classifyCitations(rawCitations, sourceText = '') {
     let parentheticalQuote = null;
     if (sourceText && typeof c.fullSpanEnd === 'number') {
       // Allow up to 20 chars of separator (period, space, newline) between span end and paren.
+      // Some citations have two consecutive parentheticals, e.g.
+      //   (2d Cir. 2014) (blocked assets are not "immunize[d] ... from execution")
+      // The second one is the explanatory quote we want, not the court/year parenthetical.
       const afterSpan = sourceText.slice(c.fullSpanEnd, c.fullSpanEnd + 520);
-      const parenM = afterSpan.match(/^[\s.,;]*\(([^)]{10,500})\)/);
-      if (parenM) {
-        const inner = parenM[1];
-        // Extract the first quoted segment inside the parenthetical.
-        const quotedM = inner.match(/["""\u201c\u201d]([^"""\u201c\u201d]{10,400})["""\u201c\u201d]/);
-        if (quotedM) {
-          parentheticalQuote = quotedM[1].trim();
-        }
+      const parens = [...afterSpan.matchAll(/[\s.,;]*\(([^)]{10,500})\)/g)].map(m => String(m[1] || '').trim());
+      const explanatory = parens.find(inner => /["\u201c\u201d]/.test(inner));
+      if (explanatory) {
+        // Prefer the full explanatory parenthetical, not only the innermost quoted words.
+        // Example: (blocked assets are not “immunize[d] ... from execution”)
+        parentheticalQuote = explanatory.replace(/\s+/g, ' ').trim();
+      } else if (parens.length === 1 && /["\u201c\u201d]/.test(parens[0])) {
+        parentheticalQuote = parens[0].replace(/\s+/g, ' ').trim();
       }
+    }
+    if (!parentheticalQuote) {
+      parentheticalQuote = extractQuotedExplanatoryParenthetical(cleanText);
     }
 
     // ── Detect paragraph vs footnote location ────────────────────────────────
@@ -4714,6 +5065,16 @@ function inferWestlawJurisdiction(citText) {
   return 'ALLCASES';
 }
 
+function extractQuotedExplanatoryParenthetical(citText) {
+  const text = String(citText || '');
+  if (!text) return null;
+  const parens = [...text.matchAll(/\(([^)]+)\)/g)].map(m => String(m[1] || '').trim());
+  if (!parens.length) return null;
+  const COURT_YEAR_RE = /\b\d{4}\b.*\b(?:Cir\.|Bankr\.|Dist\.|App\.|Ct\.|scotus|S\.D\.|E\.D\.|N\.D\.|W\.D\.|C\.D\.|D\.C\.|D\.\s*[A-Z])/i;
+  const explanatory = [...parens].reverse().find(p => /["\u201c\u201d]/.test(p) && !COURT_YEAR_RE.test(p));
+  return explanatory ? explanatory.replace(/\s+/g, ' ').trim() : null;
+}
+
 // State → federal circuit (used to include the circuit when searching a state-court case)
 const STATE_TO_CIRCUIT = {
   ME:'CTA1',NH:'CTA1',MA:'CTA1',RI:'CTA1',CT:'CTA1',VT:'CTA1',
@@ -4748,6 +5109,1113 @@ function wlCaseSearchUrl(query, jurisdiction) {
 function citationWithoutPincite(citText) {
   const raw = String(citText || '');
   return raw.replace(/(\d+)(?:,\s*\d+(?:[-\u2013]\d+)?)+(\s*(?:[.(,;]|$))/g, '$1$2').trim();
+}
+
+function extractFirstReporterTriplet(citText) {
+  const raw = String(citText || '');
+  const m = raw.match(/\b\d+\s+[A-Z][A-Za-z.\s\d']+?\s+\d+\b/);
+  return m ? m[0] : '';
+}
+
+function extractPinciteInfo(citText) {
+  const raw = String(citText || '');
+  if (!raw) return { hasPincite: false };
+
+  const expandPinciteRangeToken = (token) => {
+    const m = String(token || '').match(/^(\d{1,4})(?:\s*[-\u2013]\s*(\d{1,4}))?$/);
+    if (!m) return [];
+    const start = parseInt(m[1], 10);
+    if (!Number.isFinite(start)) return [];
+    if (!m[2]) return [start];
+
+    let end = parseInt(m[2], 10);
+    if (!Number.isFinite(end)) return [start];
+
+    // Handle short-form page ranges: 371-72 => 372, 1098-102 => 1102.
+    if (String(m[2]).length < String(m[1]).length) {
+      const mag = 10 ** String(m[2]).length;
+      end = Math.floor(start / mag) * mag + end;
+      if (end < start) end += mag;
+    }
+
+    if (end < start) return [start];
+    const span = end - start;
+    if (span > 40) return [start, end];
+    const out = [];
+    for (let p = start; p <= end; p++) out.push(p);
+    return out;
+  };
+
+  const star = raw.match(/(?:\bat\s*)?\*\s*(\d{1,4})(?:\s*[-\u2013]\s*\*?\s*(\d{1,4}))?/i)
+    || raw.match(/\[\s*\*\s*(\d{1,4})\s*\]/i);
+  if (star) {
+    return {
+      hasPincite: true,
+      kind: 'star',
+      start: parseInt(star[1], 10),
+      end: star[2] ? parseInt(star[2], 10) : parseInt(star[1], 10),
+      raw: star[0],
+    };
+  }
+
+  // Reporter-page pincite parser:
+  // - Capture the first reporter triplet (e.g., "391 U.S. 593")
+  // - Then consume only comma-prefixed page numbers/ranges immediately after it
+  // - Stop when a parallel citation starts (e.g., ", 88 S. Ct. 1753")
+  // This avoids misclassifying parallel-citation volumes (88, 119, etc.) as pincites.
+  const baseRep = raw.match(/\b\d+\s+[A-Z][A-Za-z.\s\d']+?\s+\d+\b/);
+  if (baseRep && typeof baseRep.index === 'number') {
+    let rest = raw.slice(baseRep.index + baseRep[0].length);
+    const pageTokens = [];
+    while (rest) {
+      const m = rest.match(/^\s*,\s*(\d{1,4}(?:\s*[-\u2013]\s*\d{1,4})?)(?=\s*(?:,|;|\.|\(|\)|\]|$))/);
+      if (!m) break;
+      pageTokens.push(m[1].replace(/\s+/g, ''));
+      rest = rest.slice(m[0].length);
+    }
+
+    if (pageTokens.length) {
+      const pages = pageTokens.flatMap(expandPinciteRangeToken);
+      const uniquePages = [...new Set(pages)].filter(Number.isFinite);
+
+      if (uniquePages.length) {
+        return {
+          hasPincite: true,
+          kind: 'reporter_page',
+          pages: uniquePages,
+          raw: pageTokens.join(', '),
+        };
+      }
+    }
+  }
+
+  return { hasPincite: false };
+}
+
+const PINCITE_PDF_ALIGN_CACHE = new Map();
+const PINCITE_CLUSTER_PDF_CACHE = new Map();
+const PINCITE_PDF_ALIGN_CACHE_VERSION = 'v4';
+
+function extractStorageFilepath(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  if (/^(?:recap|pdf|harvard_pdf)\//i.test(raw)) return raw.replace(/^\/+/, '');
+  if (/^\d{4}\/\d{2}\/\d{2}\/.*\.pdf(?:\?.*)?$/i.test(raw)) return `pdf/${raw.replace(/^\/+/, '').replace(/\?.*$/, '')}`;
+  const m = raw.match(/storage\.courtlistener\.com\/(recap\/[^?#]+|pdf\/[^?#]+|harvard_pdf\/[^?#]+)/i);
+  if (m?.[1]) return m[1].replace(/^\/+/, '');
+  return null;
+}
+
+function buildPincitePdfUrlCandidates(cit) {
+  const urls = [];
+  const opinionPageRe = /courtlistener\.com\/opinion\/\d+\/[^/?#]+\/?$/i;
+
+  const clUrl = String(cit?.result?.clUrl || '').trim();
+  if (clUrl && /courtlistener\.com\//i.test(clUrl)) {
+    const base = clUrl.replace(/\/+$/, '');
+    if (/\/opinion\/\d+/i.test(base)) urls.push(`${base}/pdf/`);
+  }
+
+  const pdfUrl = String(cit?.result?.pdfUrl || '').trim();
+  if (pdfUrl) {
+    // Plain opinion page URL (no .pdf extension) — convert to the /pdf/ download endpoint
+    if (opinionPageRe.test(pdfUrl) && !/\.pdf\b/i.test(pdfUrl)) {
+      urls.push(pdfUrl.replace(/\/+$/, '') + '/pdf/');
+    } else {
+      urls.push(pdfUrl);
+    }
+  }
+
+  return [...new Set(urls)];
+}
+
+function extractRecapFilepathsFromCitation(cit) {
+  const out = [];
+  const docs = Array.isArray(cit?.result?.recapDocsInfo) ? cit.result.recapDocsInfo : [];
+  for (const d of docs) {
+    const fp = extractStorageFilepath(d?.filepath || '');
+    if (fp) out.push(fp);
+  }
+  const recapPdfPath = extractStorageFilepath(cit?.result?.recapPdfUrl || '');
+  if (recapPdfPath) out.push(recapPdfPath);
+  const casePdfPath = extractStorageFilepath(cit?.result?.pdfUrl || '');
+  if (casePdfPath) out.push(casePdfPath);
+  return [...new Set(out)];
+}
+
+async function fetchCasePdfFilepathsFromCluster(cit, signal) {
+  const clId = cit?.result?.clId;
+  if (!clId) return [];
+  const cacheKey = String(clId);
+  if (PINCITE_CLUSTER_PDF_CACHE.has(cacheKey)) {
+    return PINCITE_CLUSTER_PDF_CACHE.get(cacheKey);
+  }
+  const pending = (async () => {
+    try {
+      const sig = signal || AbortSignal.timeout(15000);
+      // Fetch both cluster-level and opinion-level PDF file paths in parallel.
+      // `filepath_pdf_harvard` etc. live on individual opinion objects, not clusters.
+      const [cluster, opinionsData] = await Promise.allSettled([
+        fetchCourtListener(`/api/rest/v4/clusters/${clId}/`, {
+          params: { fields: 'id,filepath_pdf_harvard,filepath_pdf_with_citations,filepath_pdf_with_extracted_text' },
+          signal: sig,
+        }),
+        fetchCourtListener(`/api/rest/v4/opinions/`, {
+          params: { cluster: clId, fields: 'id,filepath_pdf_harvard,filepath_pdf_with_citations,filepath_pdf_with_extracted_text,filepath_local_name' },
+          signal: sig,
+        }),
+      ]);
+      const rawValues = [];
+      if (cluster.status === 'fulfilled') {
+        rawValues.push(
+          cluster.value?.filepath_pdf_harvard,
+          cluster.value?.filepath_pdf_with_citations,
+          cluster.value?.filepath_pdf_with_extracted_text,
+        );
+      }
+      if (opinionsData.status === 'fulfilled') {
+        for (const op of opinionsData.value?.results || []) {
+          rawValues.push(
+            op?.filepath_pdf_harvard,
+            op?.filepath_pdf_with_citations,
+            op?.filepath_pdf_with_extracted_text,
+            op?.filepath_local_name,
+          );
+        }
+      }
+      const paths = rawValues.map(extractStorageFilepath).filter(Boolean);
+      return [...new Set(paths)];
+    } catch (_) {
+      return [];
+    }
+  })();
+  PINCITE_CLUSTER_PDF_CACHE.set(cacheKey, pending);
+  return pending;
+}
+
+async function resolvePincitePdfFilepaths(cit, signal) {
+  const local = extractRecapFilepathsFromCitation(cit);
+  const fromCluster = await fetchCasePdfFilepathsFromCluster(cit, signal).catch(() => []);
+  // Direct harvard_pdf fallback: storage.courtlistener.com/harvard_pdf/{clId}.pdf is a reliable
+  // CL storage pattern for Harvard-sourced opinions. Try it last as a no-auth fallback.
+  const clId = cit?.result?.clId;
+  const harvardFallback = clId ? [`harvard_pdf/${clId}.pdf`] : [];
+  return [...new Set([...local, ...fromCluster, ...harvardFallback])];
+}
+
+function buildPincitePdfCacheKey(cit) {
+  const base = String(cit?.result?.clId || cit?.id || cit?.text || 'no-key');
+  return `${PINCITE_PDF_ALIGN_CACHE_VERSION}:${base}`;
+}
+
+function parseBoundaryNumbersFromPageText(pageText) {
+  const compact = String(pageText || '').replace(/\s+/g, ' ').trim();
+  if (!compact) return [];
+  const boundary = `${compact.slice(0, 260)} ${compact.slice(-260)}`;
+  const nums = [...boundary.matchAll(/\b(\d{2,4})\b/g)]
+    .map(m => parseInt(m[1], 10))
+    .filter(n => Number.isFinite(n) && n >= 50 && n <= 5000);
+  return [...new Set(nums)];
+}
+
+function extractStrictPageMarkerNumbers(items, viewport) {
+  if (!Array.isArray(items) || !viewport?.width || !viewport?.height) return [];
+  const width = viewport.width;
+  const height = viewport.height;
+  const out = [];
+
+  for (const item of items) {
+    const text = String(item?.str || '').trim();
+    if (!/^\d{1,4}$/.test(text)) continue;
+    const n = parseInt(text, 10);
+    if (!Number.isFinite(n) || n < 1 || n > 5000) continue;
+
+    const x = Number(item?.transform?.[4] || 0);
+    const y = Number(item?.transform?.[5] || 0);
+    const itemWidth = Number(item?.width || 0);
+
+    const nearTop = y >= height * 0.83;
+    const nearBottom = y <= height * 0.17;
+    const nearLeft = x <= width * 0.28;
+    const nearRight = x >= width * 0.72;
+    const nearCenter = x >= width * 0.35 && x <= width * 0.65;
+    const isolated = itemWidth <= width * 0.12;
+
+    if ((nearTop && (nearLeft || nearRight || nearCenter) && isolated) || (nearBottom && nearCenter && isolated)) {
+      out.push(n);
+    }
+  }
+
+  return [...new Set(out)];
+}
+
+function parseReporterPageMarkersFromPageText(pageText, baseCitation) {
+  if (!pageText || !baseCitation?.volume || !baseCitation?.reporter) return [];
+  const head = String(pageText).slice(0, 1600).toUpperCase();
+  const compact = head.replace(/[^A-Z0-9]/g, '');
+  const vol = String(baseCitation.volume).replace(/\D/g, '');
+  const rep = String(baseCitation.reporter).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!vol || !rep) return [];
+
+  const out = [];
+  // Captures compact header patterns like "525US155" and "525US161".
+  const re = new RegExp(`${vol}${rep}(\\d{1,4})`, 'g');
+  for (const m of compact.matchAll(re)) {
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 5000) out.push(n);
+  }
+
+  // Also capture "Cite as: 525 U. S. 155" style headers in non-compacted text.
+  const citeAs = [...head.matchAll(/CITE\s+AS[:\s]+\d+\s+[A-Z][A-Z.\s\d]*?\s+(\d{1,4})/g)]
+    .map(m => parseInt(m[1], 10))
+    .filter(Number.isFinite);
+  out.push(...citeAs);
+
+  return [...new Set(out)];
+}
+
+function summarizePincitePdfAttempts(attempts = []) {
+  if (!Array.isArray(attempts) || !attempts.length) return 'no attempt details';
+  return attempts.slice(0, 3).map(a => {
+    const src = a?.source || 'unknown-source';
+    const st = a?.status || 'unknown';
+    return `${src}: ${st}`;
+  }).join(' | ');
+}
+
+function normalizePinciteEvidenceText(text) {
+  return normalizeWs(String(text || ''))
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/([A-Za-z])\d+\b/g, '$1')
+    .replace(/\b\d+\b/g, ' ')
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function evidenceTokens(text) {
+  const stop = new Set(['the','and','for','that','this','with','from','have','been','were','which','under','into','only','their','than','such','court','case']);
+  return normalizePinciteEvidenceText(text)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length >= 4 && !stop.has(w));
+}
+
+function hasEvidenceWindows(pageNorm, evidenceNorm, windowSize = 5, minHits = 2) {
+  const words = evidenceNorm.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+  if (words.length < windowSize) return false;
+  let hits = 0;
+  for (let i = 0; i <= words.length - windowSize; i++) {
+    const phrase = words.slice(i, i + windowSize).join(' ');
+    if (pageNorm.includes(phrase)) {
+      hits += 1;
+      if (hits >= minHits) return true;
+      i += windowSize - 2;
+    }
+  }
+  return false;
+}
+
+function maxContiguousTokenRun(pageTokens, evidenceTokensList) {
+  if (!Array.isArray(pageTokens) || !Array.isArray(evidenceTokensList) || !pageTokens.length || !evidenceTokensList.length) return 0;
+  const posByToken = new Map();
+  for (let i = 0; i < pageTokens.length; i++) {
+    const t = pageTokens[i];
+    if (!posByToken.has(t)) posByToken.set(t, []);
+    posByToken.get(t).push(i);
+  }
+  let best = 0;
+  for (let i = 0; i < evidenceTokensList.length; i++) {
+    const tok = evidenceTokensList[i];
+    const starts = posByToken.get(tok) || [];
+    for (const j of starts) {
+      let run = 0;
+      while (
+        i + run < evidenceTokensList.length
+        && j + run < pageTokens.length
+        && evidenceTokensList[i + run] === pageTokens[j + run]
+      ) {
+        run += 1;
+      }
+      if (run > best) best = run;
+      if (best >= 6) return best;
+    }
+  }
+  return best;
+}
+
+function pageContainsPinciteEvidence(pageText, evidenceText) {
+  const pageNorm = normalizePinciteEvidenceText(pageText);
+  const evidenceNorm = normalizePinciteEvidenceText(evidenceText);
+  if (!pageNorm || !evidenceNorm || evidenceNorm.length < 20) return false;
+  if (pageNorm.includes(evidenceNorm)) return true;
+
+  // Fallback 1: require a substantial prefix of the evidence on the cited page.
+  const prefix = evidenceNorm.slice(0, Math.min(120, evidenceNorm.length));
+  if (prefix.length >= 40 && pageNorm.includes(prefix)) return true;
+
+  // Fallback 2 (OCR tolerant): token coverage + phrase windows.
+  const evTokens = evidenceTokens(evidenceNorm);
+  if (!evTokens.length) return false;
+  const pageTokList = evidenceTokens(pageNorm);
+  const pageTokenSet = new Set(pageTokList);
+  const overlap = evTokens.filter(t => pageTokenSet.has(t)).length;
+  const coverage = overlap / evTokens.length;
+  if (coverage >= 0.62 && hasEvidenceWindows(pageNorm, evidenceNorm, 5, 2)) return true;
+  if (coverage >= 0.75 && hasEvidenceWindows(pageNorm, evidenceNorm, 4, 1)) return true;
+
+  // Fallback 3: contiguous content-word runs catch many OCR spacing/punctuation distortions.
+  const run = maxContiguousTokenRun(pageTokList, evTokens);
+  if (run >= 5 && coverage >= 0.40) return true;
+  if (run >= 4 && coverage >= 0.52) return true;
+
+  return false;
+}
+
+function similarPinciteSnippetsOnPage(pageText, evidenceTexts = [], limit = 3) {
+  const pageRaw = String(pageText || '');
+  const evidence = (evidenceTexts || []).map(t => String(t || '').trim()).filter(t => t.length >= 20);
+  if (!pageRaw || !evidence.length) return [];
+
+  const evidenceTokenSet = new Set(evidence.flatMap(t => evidenceTokens(t)));
+  if (!evidenceTokenSet.size) return [];
+
+  let candidates = pageRaw
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map(s => s.trim())
+    .filter(s => s.length >= 40)
+    .slice(0, 220);
+
+  // OCR'd opinions can be one long block with weak punctuation; use sliding windows as fallback.
+  if (candidates.length < 8) {
+    const words = pageRaw.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+    const windows = [];
+    const win = 40;
+    const step = 18;
+    for (let i = 0; i < words.length; i += step) {
+      const chunk = words.slice(i, i + win).join(' ').trim();
+      if (chunk.length >= 60) windows.push(chunk);
+      if (i + win >= words.length) break;
+    }
+    candidates = [...candidates, ...windows].slice(0, 260);
+  }
+
+  const scored = [];
+  for (const c of candidates) {
+    const toks = evidenceTokens(c);
+    if (!toks.length) continue;
+    const overlap = toks.filter(t => evidenceTokenSet.has(t)).length;
+    const precision = overlap / toks.length;
+    const recall = overlap / evidenceTokenSet.size;
+    const f1 = (precision + recall) > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+    const score = (0.6 * f1) + (0.25 * precision) + (0.15 * recall);
+    if ((score >= 0.18 && overlap >= 3) || overlap >= 6) {
+      scored.push({
+        score,
+        text: c.length > 220 ? `${c.slice(0, 220)}…` : c,
+      });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  const out = [];
+  const seen = new Set();
+  for (const s of scored) {
+    const key = normalizePinciteEvidenceText(s.text).slice(0, 80);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ text: s.text, similarity: Math.round(s.score * 100) });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function candidatePdfPageIndexesForReporterPincite(cit, info, alignment) {
+  const base = parseReporterToken(citationWithoutPincite(cit?.text || ''));
+  const basePage = base?.page;
+  const indexMap = alignment.numberToPages || new Map();
+  const strictPageMap = alignment.strictPageMarkers || new Map();
+  const reporterMap = alignment.reporterPageMarkers || new Map();
+
+  const matchedByReporterMarkers = info.pages.filter(p => (reporterMap.get(p) || []).length > 0);
+  if (matchedByReporterMarkers.length) {
+    return {
+      method: 'reporter_header',
+      pageIndexes: [...new Set(matchedByReporterMarkers.flatMap(p => reporterMap.get(p) || []))],
+      matchedPages: matchedByReporterMarkers,
+      missingPages: info.pages.filter(p => (reporterMap.get(p) || []).length === 0),
+    };
+  }
+
+  const matchedByDirectPageNumbers = info.pages.filter(p => (strictPageMap.get(p) || []).length > 0);
+  if (matchedByDirectPageNumbers.length) {
+    return {
+      method: 'direct_page_number',
+      pageIndexes: [...new Set(matchedByDirectPageNumbers.flatMap(p => strictPageMap.get(p) || []))],
+      matchedPages: matchedByDirectPageNumbers,
+      missingPages: info.pages.filter(p => (strictPageMap.get(p) || []).length === 0),
+    };
+  }
+
+  const baseIdxCandidates = Number.isFinite(basePage)
+    ? ([...(strictPageMap.get(basePage) || []), ...(indexMap.get(basePage) || [])])
+    : [];
+  if (!baseIdxCandidates.length) {
+    return {
+      method: 'sequence_alignment',
+      pageIndexes: [],
+      matchedPages: [],
+      missingPages: info.pages,
+      basePageMissing: true,
+    };
+  }
+
+  let best = { matched: -1, pageIndexes: [], matchedPages: [], missingPages: [] };
+  for (const baseIdx of baseIdxCandidates.slice(0, 5)) {
+    const matchedPages = [];
+    const missingPages = [];
+    const pageIndexes = [];
+    for (const targetPage of info.pages) {
+      const expected = baseIdx + (targetPage - basePage);
+      const pages = indexMap.get(targetPage) || [];
+      const hit = pages.find(p => Math.abs(p - expected) <= 1);
+      if (hit != null) {
+        matchedPages.push(targetPage);
+        pageIndexes.push(hit);
+      } else {
+        missingPages.push(targetPage);
+      }
+    }
+    if (matchedPages.length > best.matched) {
+      best = { matched: matchedPages.length, pageIndexes, matchedPages, missingPages };
+    }
+  }
+
+  return {
+    method: 'sequence_alignment',
+    pageIndexes: [...new Set(best.pageIndexes)],
+    matchedPages: best.matchedPages,
+    missingPages: best.missingPages,
+    basePageMissing: false,
+  };
+}
+
+function observedPdfReporterPages(alignment) {
+  const nums = [
+    ...Array.from((alignment?.strictPageMarkers || new Map()).keys()),
+    ...Array.from((alignment?.reporterPageMarkers || new Map()).keys()),
+  ].filter(Number.isFinite);
+  return [...new Set(nums)].sort((a, b) => a - b);
+}
+
+function splitOpinionTextByStarPages(opinionText) {
+  const text = String(opinionText || '');
+  const matches = [...text.matchAll(/\[\*\s*(\d{1,4})\s*\]/g)];
+  if (!matches.length) return null;
+
+  const pages = new Map();
+  for (let i = 0; i < matches.length; i++) {
+    const page = parseInt(matches[i][1], 10);
+    if (!Number.isFinite(page)) continue;
+    const start = (matches[i].index || 0) + matches[i][0].length;
+    const end = i + 1 < matches.length ? (matches[i + 1].index || text.length) : text.length;
+    const segment = text.slice(start, end).trim();
+    if (!segment) continue;
+    const prev = pages.get(page) || '';
+    pages.set(page, `${prev}\n${segment}`.trim());
+  }
+
+  return pages.size ? pages : null;
+}
+
+function verifyPinciteByOpinionStarPages(info, opinionText, evidenceTexts = [], options = {}) {
+  if (!Array.isArray(info?.pages) || !info.pages.length) return null;
+  const pageMap = splitOpinionTextByStarPages(opinionText);
+  if (!pageMap) return null;
+
+  const preferredEvidence = String(options?.preferredEvidenceText || '').trim();
+  const evidence = [...new Set((evidenceTexts || []).map(t => String(t || '').trim()).filter(t => t.length >= 20))];
+  const orderedEvidence = preferredEvidence && evidence.includes(preferredEvidence)
+    ? [preferredEvidence, ...evidence.filter(t => t !== preferredEvidence)]
+    : evidence;
+
+  const matchedPages = [];
+  const missingPages = [];
+  let matchedEvidenceText = null;
+
+  for (const p of info.pages) {
+    const pageText = pageMap.get(p) || '';
+    if (!pageText) {
+      missingPages.push(p);
+      continue;
+    }
+    matchedPages.push(p);
+    if (!matchedEvidenceText && orderedEvidence.length > 0) {
+      const found = orderedEvidence.find(txt => pageContainsPinciteEvidence(pageText, txt));
+      if (found) matchedEvidenceText = found;
+    }
+  }
+
+  return {
+    available: true,
+    matchedPages,
+    missingPages,
+    evidenceMatched: !!matchedEvidenceText,
+    matchedEvidenceText,
+    completeCoverage: missingPages.length === 0,
+  };
+}
+
+async function loadPincitePdfAlignment(cit, signal) {
+  const cacheKey = buildPincitePdfCacheKey(cit);
+  if (!cacheKey) return null;
+  if (PINCITE_PDF_ALIGN_CACHE.has(cacheKey)) return PINCITE_PDF_ALIGN_CACHE.get(cacheKey);
+
+  const pending = (async () => {
+    const filepaths = await resolvePincitePdfFilepaths(cit, signal);
+    const urlCandidates = buildPincitePdfUrlCandidates(cit);
+    if (!filepaths.length && !urlCandidates.length) return null;
+
+    const targets = [
+      ...filepaths.map(filepath => ({ filepath })),
+      ...urlCandidates.map(url => ({ url })),
+    ];
+    const attempts = [];
+    const baseCitation = parseReporterToken(citationWithoutPincite(cit?.text || ''));
+
+    for (const target of targets.slice(0, 6)) {
+      try {
+        const sourceLabel = target.filepath
+          ? `storage:${target.filepath}`
+          : `url:${String(target.url || '')}`;
+        const innerSignal = signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(22000)])
+          : AbortSignal.timeout(22000);
+        const res = await fetch(`${API}/api/proxy/recap-pdf`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target),
+          signal: innerSignal,
+        });
+        if (!res.ok) {
+          attempts.push({ source: sourceLabel, status: `http_${res.status}` });
+          continue;
+        }
+
+        const ab = await res.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        const maxPages = Math.min(pdf.numPages || 0, 140);
+        if (!maxPages) {
+          attempts.push({ source: sourceLabel, status: 'parsed_0_pages' });
+          continue;
+        }
+        const pages = [];
+        const starMarkers = new Map();
+        const numberToPages = new Map();
+        const strictPageMarkers = new Map();
+        const reporterPageMarkers = new Map();
+
+        for (let i = 1; i <= maxPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1 });
+          const content = await page.getTextContent();
+          const text = content.items.map(it => it.str).join(' ');
+          pages.push(text);
+
+          const boundaries = parseBoundaryNumbersFromPageText(text);
+          for (const n of boundaries) {
+            if (!numberToPages.has(n)) numberToPages.set(n, []);
+            numberToPages.get(n).push(i - 1); // zero-based index for alignment math
+          }
+
+          const strictNums = extractStrictPageMarkerNumbers(content.items, viewport);
+          for (const n of strictNums) {
+            if (!strictPageMarkers.has(n)) strictPageMarkers.set(n, []);
+            strictPageMarkers.get(n).push(i - 1);
+          }
+
+          const reporterMarkers = parseReporterPageMarkersFromPageText(text, baseCitation);
+          for (const n of reporterMarkers) {
+            if (!reporterPageMarkers.has(n)) reporterPageMarkers.set(n, []);
+            reporterPageMarkers.get(n).push(i - 1);
+          }
+
+          const starNums = [...text.matchAll(/(?:\[\*\s*(\d{1,4})\s*\]|\*\s*(\d{1,4})\b|at\s+\*\s*(\d{1,4})\b)/ig)]
+            .map(m => parseInt(m[1] || m[2] || m[3], 10))
+            .filter(Number.isFinite);
+          if (starNums.length) {
+            for (const n of starNums) {
+              if (!starMarkers.has(n)) starMarkers.set(n, []);
+              starMarkers.get(n).push(i - 1);
+            }
+          }
+        }
+
+        return {
+          pageCount: maxPages,
+          numberToPages,
+          strictPageMarkers,
+          reporterPageMarkers,
+          starMarkers,
+          pageTexts: pages,
+          debug: {
+            attempted: true,
+            fetchSucceeded: true,
+            source: sourceLabel,
+            attempts,
+          },
+        };
+      } catch (e) {
+        const sourceLabel = target.filepath
+          ? `storage:${target.filepath}`
+          : `url:${String(target.url || '')}`;
+        attempts.push({ source: sourceLabel, status: e?.name || 'fetch_or_parse_error' });
+        continue;
+      }
+    }
+
+    return {
+      pageCount: 0,
+      numberToPages: new Map(),
+      strictPageMarkers: new Map(),
+      reporterPageMarkers: new Map(),
+      starMarkers: new Map(),
+      pageTexts: [],
+      debug: {
+        attempted: true,
+        fetchSucceeded: false,
+        source: null,
+        attempts,
+      },
+    };
+  })();
+
+  PINCITE_PDF_ALIGN_CACHE.set(cacheKey, pending);
+  // Don't retain failed alignment attempts in cache. Otherwise stale http_400
+  // diagnostics can persist across retries and mask fixed PDF sources.
+  pending.then(result => {
+    if (!result?.debug?.fetchSucceeded) {
+      PINCITE_PDF_ALIGN_CACHE.delete(cacheKey);
+    }
+  }).catch(() => {
+    PINCITE_PDF_ALIGN_CACHE.delete(cacheKey);
+  });
+  return pending;
+}
+
+function verifyReporterPinciteByPdfAlignment(cit, info, alignment, evidenceTexts = [], options = {}) {
+  const strictEvidence = options?.strictEvidence !== false;
+  const evidenceVerifiedInOpinion = options?.evidenceVerifiedInOpinion === true;
+  if (!alignment || !Array.isArray(info?.pages) || !info.pages.length) return null;
+
+  if (alignment?.debug?.attempted && !alignment?.debug?.fetchSucceeded) {
+    return {
+      status: 'plausible',
+      note: `PDF unreadable; page check unavailable (${summarizePincitePdfAttempts(alignment.debug.attempts)}).`,
+      verifiedPages: [],
+      missingPages: info.pages,
+    };
+  }
+
+  const pageMatch = candidatePdfPageIndexesForReporterPincite(cit, info, alignment);
+  const preferredEvidence = String(options?.preferredEvidenceText || '').trim();
+  const evidence = [...new Set((evidenceTexts || []).map(t => String(t || '').trim()).filter(t => t.length >= 20))];
+  const orderedEvidence = preferredEvidence && evidence.includes(preferredEvidence)
+    ? [preferredEvidence, ...evidence.filter(t => t !== preferredEvidence)]
+    : evidence;
+  const pageTexts = Array.isArray(alignment.pageTexts) ? alignment.pageTexts : [];
+  const inRange = idx => Number.isFinite(idx) && idx >= 0 && idx < pageTexts.length;
+  const observedPages = observedPdfReporterPages(alignment);
+  const maxObservedPage = observedPages.length ? observedPages[observedPages.length - 1] : null;
+  if (pageMatch.basePageMissing) {
+    const strippedCitation = citationWithoutPincite(cit?.text || '');
+    const base = parseReporterToken(strippedCitation)
+      || parseReporterToken(extractFirstReporterTriplet(cit?.text || ''));
+    const basePage = base?.page;
+    
+    // Try to find evidence by exhaustively searching with different base page offset assumptions
+    if (Number.isFinite(basePage) && pageTexts.length > 0 && info.pages.length > 0) {
+      const hasEvidence = orderedEvidence.length > 0;
+      
+      // Try possible base offsets including negatives.
+      // Negative offsets are common when the extracted PDF starts after the reporter base page.
+      const pageOffsets = info.pages.map(targetPage => targetPage - basePage).filter(Number.isFinite);
+      const minPageOffset = pageOffsets.length ? Math.min(...pageOffsets) : 0;
+      const maxPageOffset = pageOffsets.length ? Math.max(...pageOffsets) : 0;
+      const minBaseOffset = -maxPageOffset - 2;
+      const maxBaseOffset = (pageTexts.length - 1) - minPageOffset + 2;
+      for (let possibleBaseOffset = minBaseOffset; possibleBaseOffset <= maxBaseOffset; possibleBaseOffset++) {
+        const candidateIndexes = info.pages.flatMap(targetPage => {
+          const pageOffset = targetPage - basePage;
+          const candidates = [possibleBaseOffset + pageOffset - 1, possibleBaseOffset + pageOffset, possibleBaseOffset + pageOffset + 1];
+          return candidates.filter(inRange);
+        });
+        
+        const uniqueCandidates = [...new Set(candidateIndexes)];
+        if (uniqueCandidates.length === 0) continue;
+        
+        // Try matching evidence if available
+        if (hasEvidence) {
+          let matchedEvidence = null;
+          
+          // Try strict matching first
+          matchedEvidence = orderedEvidence.find(txt => 
+            uniqueCandidates.some(idx => pageContainsPinciteEvidence(pageTexts[idx] || '', txt))
+          );
+          
+          // If no match, try more lenient matching - just look for key words/phrases
+          if (!matchedEvidence) {
+            matchedEvidence = orderedEvidence.find(txt => {
+              const keywords = txt.split(/\s+/).filter(w => w.length > 4).slice(0, 5);
+              const combined = uniqueCandidates.map(idx => pageTexts[idx] || '').join(' ').toLowerCase();
+              return keywords.length > 0 && keywords.some(kw => combined.includes(kw.toLowerCase()));
+            });
+          }
+          
+          if (matchedEvidence) {
+            return {
+              status: 'verified',
+              note: `Quote found on inferred PDF page ${info.pages.join(', ')}; base page marker not detected.`,
+              verifiedPages: info.pages,
+              missingPages: [],
+              evidencePreview: matchedEvidence,
+              evidenceSimilarity: null,
+              evidenceFromPdf: false,
+              evidenceVerbatimMatched: true,
+            };
+          }
+        }
+        
+      }
+    }
+    
+    const beyondObserved = Number.isFinite(maxObservedPage)
+      && info.pages.every(p => Number.isFinite(p) && p > maxObservedPage);
+    
+    return {
+      status: beyondObserved ? 'unverifiable' : 'plausible',
+      note: beyondObserved
+        ? `Cited pincite page ${info.pages.join(', ')} is beyond the highest reporter page detectable in the fetched PDF (${maxObservedPage}). This page citation may be wrong and should be checked manually.`
+        : 'PDF fetched, but reporter base page was not detectable in page boundaries, so deterministic page alignment could not be completed.',
+      verifiedPages: [],
+      missingPages: info.pages,
+    };
+  }
+  const assessEvidence = (candidateMatch) => {
+    const matchedIndexes = [...new Set((candidateMatch.pageIndexes || []).filter(inRange))];
+    const matchedPlusNeighbors = [...new Set(matchedIndexes.flatMap(idx => [idx - 1, idx, idx + 1]).filter(inRange))];
+
+    const evidenceMatchedExactPage = orderedEvidence.length > 0 && matchedIndexes.some(idx => {
+      const pageText = pageTexts[idx] || '';
+      return orderedEvidence.some(txt => pageContainsPinciteEvidence(pageText, txt));
+    });
+
+    const evidenceMatchedNeighbor = !evidenceMatchedExactPage && orderedEvidence.length > 0 && matchedPlusNeighbors.some(idx => {
+      const pageText = pageTexts[idx] || '';
+      return orderedEvidence.some(txt => pageContainsPinciteEvidence(pageText, txt));
+    });
+
+    const evidenceMatched = evidenceMatchedExactPage || evidenceMatchedNeighbor;
+    const matchedEvidenceText = orderedEvidence.find(txt => {
+      const testPages = evidenceMatchedExactPage ? matchedIndexes : matchedPlusNeighbors;
+      return testPages.some(idx => pageContainsPinciteEvidence(pageTexts[idx] || '', txt));
+    }) || null;
+
+    const bestEvidenceCandidate = orderedEvidence.length > 0
+      ? (matchedPlusNeighbors
+        .flatMap(idx => similarPinciteSnippetsOnPage(pageTexts[idx] || '', orderedEvidence, 1))
+        .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))[0] || null)
+      : null;
+
+    return {
+      candidateMatch,
+      matchedIndexes,
+      matchedPlusNeighbors,
+      evidenceMatchedExactPage,
+      evidenceMatchedNeighbor,
+      evidenceMatched,
+      matchedEvidenceText,
+      bestEvidenceCandidate,
+    };
+  };
+
+  let activeAssessment = assessEvidence(pageMatch);
+  let activePageMatch = pageMatch;
+  if (!activeAssessment.evidenceMatched && pageMatch.method !== 'sequence_alignment') {
+    const sequencePageMatch = candidatePdfPageIndexesForReporterPincite(cit, info, {
+      ...alignment,
+      strictPageMarkers: new Map(),
+      reporterPageMarkers: new Map(),
+    });
+    const sequenceAssessment = assessEvidence(sequencePageMatch);
+    if (sequenceAssessment.evidenceMatched) {
+      activeAssessment = sequenceAssessment;
+      activePageMatch = sequencePageMatch;
+    }
+  }
+
+  const matchedIndexes = activeAssessment.matchedIndexes;
+  const matchedPlusNeighbors = activeAssessment.matchedPlusNeighbors;
+  const evidenceMatchedExactPage = activeAssessment.evidenceMatchedExactPage;
+  const evidenceMatchedNeighbor = activeAssessment.evidenceMatchedNeighbor;
+  const evidenceMatched = activeAssessment.evidenceMatched;
+  const matchedEvidenceText = activeAssessment.matchedEvidenceText;
+  const bestEvidenceCandidate = activeAssessment.bestEvidenceCandidate;
+
+  if (activePageMatch.matchedPages.length === info.pages.length && evidenceMatched) {
+    return {
+      status: 'verified',
+      note: evidenceMatchedExactPage
+        ? `PDF page matched (${activePageMatch.matchedPages.join(', ')}); passage found on that page.`
+        : `PDF page matched (${activePageMatch.matchedPages.join(', ')}); passage found on an adjacent extracted segment.`,
+      verifiedPages: activePageMatch.matchedPages,
+      missingPages: [],
+      // Show the clean human-readable quote we searched for, not the OCR extract.
+      evidencePreview: matchedEvidenceText || preferredEvidence || bestEvidenceCandidate?.text || null,
+      evidenceSimilarity: matchedEvidenceText ? null : (bestEvidenceCandidate?.similarity || null),
+      evidenceFromPdf: !matchedEvidenceText && !preferredEvidence,
+      evidenceVerbatimMatched: !!matchedEvidenceText,
+    };
+  }
+
+  if (activePageMatch.matchedPages.length > 0 && orderedEvidence.length > 0 && !evidenceMatched) {
+    let similarCandidates = matchedPlusNeighbors
+      .flatMap(idx => similarPinciteSnippetsOnPage(pageTexts[idx] || '', orderedEvidence, 2))
+      .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
+      .slice(0, 3);
+
+    if (!similarCandidates.length && pageTexts.length) {
+      similarCandidates = pageTexts
+        .map((txt, idx) => ({ idx, list: similarPinciteSnippetsOnPage(txt || '', orderedEvidence, 1) }))
+        .flatMap(r => r.list)
+        .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
+        .slice(0, 3);
+    }
+
+    const topSimilarity = Number(bestEvidenceCandidate?.similarity || 0);
+
+    if (activePageMatch.matchedPages.length === info.pages.length && evidenceVerifiedInOpinion) {
+      return {
+        status: 'verified',
+        note: `Quote verified; reporter page matched (${activePageMatch.matchedPages.join(', ')}). Same-page support confirmed.`,
+        verifiedPages: activePageMatch.matchedPages,
+        missingPages: [],
+        evidencePreview: preferredEvidence || matchedEvidenceText || null,
+        evidenceSimilarity: null,
+        evidenceFromPdf: false,
+        evidenceVerbatimMatched: true,
+        similarCandidates,
+      };
+    }
+
+    // OCR and line-break noise can break verbatim matching even on the correct reporter page.
+    // If page marker alignment is exact and we still have a strong semantic candidate on-page,
+    // treat this as verified-by-strong-near-match instead of a false negative.
+    if (activePageMatch.matchedPages.length === info.pages.length && topSimilarity >= 70) {
+      return {
+        status: 'verified',
+        note: `Reporter page matched (${activePageMatch.matchedPages.join(', ')}); near-match found (~${topSimilarity}%).`,
+        verifiedPages: activePageMatch.matchedPages,
+        missingPages: [],
+        evidencePreview: preferredEvidence || matchedEvidenceText || null,
+        evidenceSimilarity: null,
+        evidenceFromPdf: false,
+        evidenceVerbatimMatched: false,
+        similarCandidates,
+      };
+    }
+
+    if (!strictEvidence) {
+      return {
+        status: 'plausible',
+        note: `PDF page matched (${activePageMatch.matchedPages.join(', ')}), but no verbatim quote was confirmed there.`,
+        verifiedPages: activePageMatch.matchedPages,
+        missingPages: [],
+        evidencePreview: preferredEvidence || matchedEvidenceText || null,
+        evidenceSimilarity: null,
+        evidenceFromPdf: false,
+        evidenceVerbatimMatched: false,
+        similarCandidates,
+      };
+    }
+
+    if (topSimilarity < 35) {
+      return {
+        status: 'unverifiable',
+        note: `PDF page matched (${activePageMatch.matchedPages.join(', ')}), but the passage was not found there. Check this pincite manually.`,
+        verifiedPages: [],
+        missingPages: info.pages,
+        evidencePreview: preferredEvidence || matchedEvidenceText || null,
+        evidenceSimilarity: null,
+        evidenceFromPdf: false,
+        evidenceVerbatimMatched: false,
+        similarCandidates,
+      };
+    }
+
+    return {
+      status: 'plausible',
+      note: `PDF page matched (${activePageMatch.matchedPages.join(', ')}), but quote matching was inconclusive.`,
+      verifiedPages: activePageMatch.matchedPages,
+      missingPages: [],
+      evidencePreview: preferredEvidence || matchedEvidenceText || null,
+      evidenceSimilarity: null,
+      evidenceFromPdf: false,
+      evidenceVerbatimMatched: false,
+      similarCandidates,
+    };
+  }
+
+  if (activePageMatch.matchedPages.length === info.pages.length) {
+    return {
+      status: 'plausible',
+      note: `PDF page matched (${activePageMatch.matchedPages.join(', ')}), but page-specific text matching was unavailable.`,
+      verifiedPages: activePageMatch.matchedPages,
+      missingPages: [],
+    };
+  }
+
+  if (activePageMatch.matchedPages.length > 0) {
+    return {
+      status: 'plausible',
+      note: `PDF matched page(s) ${activePageMatch.matchedPages.join(', ')}; could not confirm ${activePageMatch.missingPages.join(', ')}.`,
+      verifiedPages: activePageMatch.matchedPages,
+      missingPages: activePageMatch.missingPages,
+    };
+  }
+
+  return {
+    status: 'unverifiable',
+    note: 'PDF was fetched but reporter pincite pages could not be aligned to detected page boundaries.',
+    verifiedPages: [],
+    missingPages: info.pages,
+  };
+}
+
+async function evaluatePinciteCheck(cit, opinionText, signal, evidenceTexts = [], options = {}) {
+  const info = extractPinciteInfo(cit?.text || '');
+  if (!info.hasPincite) return null;
+
+  const text = String(opinionText || '');
+  const strictEvidence = options?.strictEvidence !== false;
+  const hasPdfPathHint = !!(extractRecapFilepathsFromCitation(cit).length || cit?.result?.clId);
+
+  const starPageCheck = text
+    ? verifyPinciteByOpinionStarPages(info, text, evidenceTexts, options)
+    : null;
+  if (starPageCheck?.available && starPageCheck.completeCoverage) {
+    if (starPageCheck.evidenceMatched) {
+      return {
+        status: 'verified',
+        kind: info.kind,
+        raw: info.raw,
+        note: `Opinion page matched (${starPageCheck.matchedPages.join(', ')}); quote appears on that page.`,
+        similarCandidates: [],
+        evidencePreview: starPageCheck.matchedEvidenceText || String(options?.preferredEvidenceText || '').trim() || null,
+        evidenceSimilarity: null,
+        evidenceFromPdf: false,
+        evidenceVerbatimMatched: true,
+        pdfPathAvailable: hasPdfPathHint,
+      };
+    }
+    if (strictEvidence) {
+      return {
+        status: 'unverifiable',
+        kind: info.kind,
+        raw: info.raw,
+        note: `Opinion page matched (${starPageCheck.matchedPages.join(', ')}), but the quote was not found on that page.`,
+        similarCandidates: [],
+        evidencePreview: String(options?.preferredEvidenceText || '').trim() || null,
+        evidenceSimilarity: null,
+        evidenceFromPdf: false,
+        evidenceVerbatimMatched: false,
+        pdfPathAvailable: hasPdfPathHint,
+      };
+    }
+  }
+
+  const pdfAlignment = hasPdfPathHint
+    ? await loadPincitePdfAlignment(cit, signal).catch(() => null)
+    : null;
+  const pdfAttempted = !!pdfAlignment?.debug?.attempted;
+
+  if (!text && !pdfAlignment) {
+    return {
+      status: 'unverifiable',
+      kind: info.kind,
+      raw: info.raw,
+      note: hasPdfPathHint
+        ? 'Pincite detected, but no opinion text was loaded. PDF path exists, so page-level validation may be possible via direct PDF alignment.'
+        : 'Pincite detected, but no opinion text source is available to validate page-level pinpoint.',
+      pdfPathAvailable: hasPdfPathHint,
+    };
+  }
+
+  if (!text && pdfAttempted && !pdfAlignment?.debug?.fetchSucceeded) {
+    return {
+      status: 'unverifiable',
+      kind: info.kind,
+      raw: info.raw,
+      note: `Pincite detected, but the PDF was unreadable (${summarizePincitePdfAttempts(pdfAlignment.debug.attempts)}).`,
+      pdfPathAvailable: hasPdfPathHint,
+    };
+  }
+
+  if (info.kind === 'star') {
+    const from = Number.isFinite(info.start) ? info.start : null;
+    const to = Number.isFinite(info.end) ? info.end : from;
+    const hasMarker = (n) => n != null && new RegExp(`(?:\\[\\*\\s*${n}\\s*\\]|\\*\\s*${n}\\b|at\\s+\\*\\s*${n}\\b)`, 'i').test(text);
+    const markerInOpinionText = hasMarker(from) || (to !== from && hasMarker(to));
+    const markerInPdf = (n) => {
+      if (n == null || !pdfAlignment?.starMarkers) return false;
+      return (pdfAlignment.starMarkers.get(n) || []).length > 0;
+    };
+    const verified = markerInOpinionText || markerInPdf(from) || (to !== from && markerInPdf(to));
+    return {
+      status: verified ? 'verified' : 'unverifiable',
+      kind: info.kind,
+      raw: info.raw,
+      note: verified
+        ? (markerInOpinionText
+          ? 'Star-page marker matching this pincite is present in the loaded opinion text.'
+          : 'Star-page marker matching this pincite was confirmed from the aligned PDF text.')
+        : 'Star-page pincite found in citation, but corresponding star-page markers were not found in the loaded opinion text.',
+      pdfPathAvailable: hasPdfPathHint,
+    };
+  }
+
+  if (info.kind === 'reporter_page' && pdfAlignment) {
+    const aligned = verifyReporterPinciteByPdfAlignment(cit, info, pdfAlignment, evidenceTexts, options);
+    if (aligned) {
+      return {
+        status: aligned.status,
+        kind: info.kind,
+        raw: info.raw,
+        note: aligned.note,
+        similarCandidates: aligned.similarCandidates || [],
+        evidencePreview: aligned.evidencePreview || null,
+        evidenceSimilarity: aligned.evidenceSimilarity || null,
+        evidenceFromPdf: aligned.evidenceFromPdf || false,
+        evidenceVerbatimMatched: aligned.evidenceVerbatimMatched || false,
+        pdfPathAvailable: hasPdfPathHint,
+      };
+    }
+  }
+
+  const hasPageMarker = /(?:\bpage\s+\d{1,4}\b|\[\*\s*\d{1,4}\s*\]|\*\s*\d{1,4}\b)/i.test(text);
+  return {
+    status: 'plausible',
+    kind: info.kind,
+    raw: info.raw,
+    note: pdfAlignment
+      ? 'PDF alignment was attempted, but reporter-page mapping still could not be deterministically confirmed from detected page markers.'
+      : (hasPageMarker
+        ? 'Opinion text is available, but reporter-page pincite cannot be deterministically mapped without page-image alignment.'
+        : 'Opinion text is available, but no stable page markers were found for deterministic reporter-page pincite verification.'),
+    pdfPathAvailable: hasPdfPathHint,
+  };
 }
 
 // Google Scholar case law search URL.
@@ -4950,12 +6418,57 @@ function isRecapDocSubstantive(desc) {
     'proposed order',
     'leave to',
     'transcript order form',
+    'declaration of',
+    'declaration',        // catches "Carroll Declaration", "Crumpler Declaration", etc.
+    'affidavit of',
+    'affidavit',
+    'application for',
+    'master service list',
+    'exhibit ',
+    'proof of claim',
+    'petition for',
+    'voluntary petition',
+    'summons',
+    'subpoena',
+    'cover sheet',
   ];
   if (nonSubstantive.some(x => text.includes(x))) return false;
   return [
     'opinion', 'order', 'judgment', 'memorandum', 'decision',
     'report and recommendation', 'findings of fact', 'decree', 'ruling',
   ].some(x => text.includes(x));
+}
+
+// Returns true if the fetched PDF text is a procedural/scheduling document with
+// no substantive legal analysis. Uses domain-agnostic signals that apply equally
+// to bankruptcy, civil, criminal, administrative, and all other case types.
+function isProceduralOrderText(text) {
+  if (!text) return false;
+  // Step 1: must contain a clear scheduling/administrative trigger.
+  // These patterns appear in procedural filings across ALL case types.
+  const hasSchedulingTrigger =
+    /\bat\s+\d+:\d+\s*(a\.?m\.?|p\.?m\.?)/i.test(text) ||   // time-of-day (10:00 a.m.)
+    /motion to shorten\b/i.test(text) ||
+    /order shortening time/i.test(text) ||
+    /\bscheduling (order|conference)\b/i.test(text) ||
+    /\bcase management (order|conference|plan)\b/i.test(text) ||
+    /\bbriefing schedule\b/i.test(text);
+  if (!hasSchedulingTrigger) return false;
+
+  // Step 2: the document is procedural unless it contains substantive REASONING markers.
+  // Bare statute citations (§ 105, § 1521) are NOT sufficient — scheduling orders routinely
+  // cite statutory authority for the scheduled relief without any legal analysis. Only case
+  // reporter citations (actual case law) and explicit reasoning phrases indicate substance.
+  const hasSubstantiveReasoning =
+    // Reporter-style case citations only. This intentionally excludes statutes
+    // like "11 U.S.C. § 1519", which previously caused false positives.
+    /\b\d+\s+(?:F\.\s*(?:Supp\.?\s*\d*|[234]d)|B\.R\.|U\.S\.(?!C)|S\.Ct\.|F\.\s*App(?:'x)?|Bankr\.)\s+\d+\b/.test(text) ||
+    /\bthe court (finds|holds|concludes|determines)\b/i.test(text) ||
+    /\bfor the (foregoing|following) reasons\b/i.test(text) ||
+    /\bbased (on|upon) the foregoing\b/i.test(text) ||
+    /\bin light of the foregoing\b/i.test(text);
+
+  return !hasSubstantiveReasoning;
 }
 
 function recapDateProximity(citText, entryDate) {
@@ -5035,6 +6548,85 @@ async function recapSearchByDocket(cit, signal) {
 // ── RECAP opinion text fetcher ────────────────────────────────────────────────
 // Given a docket ID, tries to retrieve plain text of the main opinion document.
 // Tries plain_text from the API first; falls back to fetching the PDF via pdf.js.
+// Fetch opinion text for a docket citation via CL's opinion cluster index.
+// Queries /clusters/?docket=ID — only works when CL has indexed a written opinion
+// for this docket (common for notable older cases, rare for recent filings).
+// Returns plain text or null. Requires a CL API key.
+async function fetchDocketOpinionText(docketId, signal, keywords = []) {
+  if (!docketId) return null;
+
+  // Helper: fetch docket-entries RECAP PDFs and return the best substantive text.
+  const tryDocketEntries = async () => {
+    try {
+      const entries = await fetchCourtListener('/api/rest/v4/docket-entries/', {
+        params: { docket: docketId, page_size: 50, order_by: 'entry_number' },
+        signal,
+      });
+      const rdocs = [];
+      for (const e of (entries?.results || [])) {
+        const desc = `${e.description || ''} ${e.entry_description || ''}`.trim();
+        for (const rd of (e.recap_documents || [])) {
+          rdocs.push({ ...rd, description: rd.description || desc });
+        }
+      }
+      const available = rdocs.filter(d => d.is_available && d.filepath_local?.startsWith('recap/'));
+      if (!available.length) return null;
+      const sorted = [...available].sort((a, b) => {
+        const aSubst = isRecapDocSubstantive(a.description) ? 4 : 0;
+        const bSubst = isRecapDocSubstantive(b.description) ? 4 : 0;
+        const aRel = scoreDocRelevance(a.description, keywords);
+        const bRel = scoreDocRelevance(b.description, keywords);
+        const aProcPenalty = /shorten\s+time|order\s+shortening\s+time|scheduling\s+hearing/i.test(a.description || '') ? 6 : 0;
+        const bProcPenalty = /shorten\s+time|order\s+shortening\s+time|scheduling\s+hearing/i.test(b.description || '') ? 6 : 0;
+        return (bSubst + bRel - bProcPenalty) - (aSubst + aRel - aProcPenalty);
+      });
+      return await fetchRecapOpinionText(sorted, '', signal);
+    } catch (_) { return null; }
+  };
+
+  try {
+    const clusters = await fetchCourtListener('/api/rest/v4/clusters/', {
+      params: { docket: docketId, page_size: 5, fields: 'id,case_name,date_filed' },
+      signal,
+    });
+    const rows = clusters?.results || [];
+
+    if (rows.length) {
+      // Try each cluster (most recent first); skip procedural orders.
+      // If all clusters are procedural, fall through to docket-entries below.
+      const sorted = [...rows].sort((a, b) =>
+        (b.date_filed || '').localeCompare(a.date_filed || '')
+      );
+      for (const cluster of sorted) {
+        try {
+          const opinions = await fetchCourtListener('/api/rest/v4/opinions/', {
+            params: { cluster: cluster.id, page_size: 10,
+                      fields: 'plain_text,html_with_citations,type' },
+            signal,
+          });
+          const TYPE_ORDER = {
+            '010combined': 0, '015headmatter': 1, '020lead': 2, '025plurality': 3,
+            '030concurrence': 4, '040dissent': 6,
+          };
+          const opRows = [...(opinions?.results || [])].sort(
+            (a, b) => (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99)
+          );
+          const texts = opRows.map(op =>
+            (op.plain_text || (op.html_with_citations || '').replace(/<[^>]+>/g, ' ')).trim()
+          ).filter(t => t.length > 200);
+          if (!texts.length) continue;
+          const combined = stripOpinionBoilerplate(texts.join('\n\n── ── ──\n\n'));
+          // Skip if this cluster is a procedural/scheduling order — try next cluster
+          // or fall through to docket-entries RECAP PDFs.
+          if (!isProceduralOrderText(combined)) return combined;
+        } catch (_) { continue; }
+      }
+      // All clusters were procedural or empty — fall through to docket-entries.
+    }
+  } catch (_) {}
+  return await tryDocketEntries();
+}
+
 // Accepts the recap_documents array already embedded in search?type=r results.
 // Fetches PDFs via the worker proxy (/api/proxy/recap-pdf) to bypass CORS.
 async function fetchRecapOpinionText(recapDocs, citText, signal) {
@@ -5049,27 +6641,160 @@ async function fetchRecapOpinionText(recapDocs, citText, signal) {
 
   for (const doc of candidates.slice(0, 5)) {
     try {
+      const innerSignal = signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+        : AbortSignal.timeout(15000);
       const res = await fetch(`${API}/api/proxy/recap-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filepath: doc.filepath_local }),
-        signal: AbortSignal.timeout(30000),
+        signal: innerSignal,
       });
       if (!res.ok) continue;
       const ab = await res.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
       const pages = [];
+      let consecutiveGarbled = 0;
       for (let i = 1; i <= Math.min(pdf.numPages, 80); i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        pages.push(content.items.map(it => it.str).join(' '));
+        const pageText = content.items.map(it => it.str).join(' ');
+        // Detect font-substitution garble: <10% of alphabetic chars are lowercase.
+        // PACER exhibits often use embedded fonts that pdf.js can't decode.
+        const alpha = pageText.match(/[a-zA-Z]/g) || [];
+        const lower = pageText.match(/[a-z]/g) || [];
+        const garbled = alpha.length > 30 && lower.length / alpha.length < 0.10;
+        if (garbled) {
+          if (++consecutiveGarbled >= 2) break; // exhibit section — stop entirely
+          continue;
+        }
+        consecutiveGarbled = 0;
+        pages.push(pageText);
       }
       const text = stripOpinionBoilerplate(pages.join('\n\n'));
-      if (text && text.length > 200) return text;
+      if (text && text.length > 200 && !isProceduralOrderText(text)) return text;
     } catch (_) {
       continue;
     }
   }
+  return null;
+}
+
+// Extract keywords from a docket citation to score RECAP doc relevance.
+// Uses the parenthetical quote (most specific) and citation text.
+// Legal topics used both as positive signals (if present in citation context)
+// and as negative signals (if present in description but absent from citation context).
+const RECAP_LEGAL_TOPICS = [
+  'provisional relief', 'preliminary injunction', 'temporary restraining order', 'tro',
+  'automatic stay', 'injunction', 'stay', 'recognition', 'foreign main proceeding',
+  'status quo', 'maintain status', 'preserve assets',
+  'asset sale', 'sale of assets', 'sale', 'section 363', '§ 363',
+  'plan of reorganization', 'plan confirmation', 'confirmation',
+  'dismissal', 'dismiss', 'sanctions', 'contempt',
+  'summary judgment', 'default judgment',
+  'class certification', 'arbitration', 'mediation',
+  'comity', 'center of main interests', 'comi',
+  'discharge', 'avoidance', 'preference', 'fraudulent transfer',
+  'turnover', 'lift stay', 'relief from stay', 'protective order',
+];
+
+// Stopwords for raw-word extraction from parentheticals.
+const RECAP_STOPWORDS = new Set([
+  'the','and','for','that','this','with','from','was','has','are','its',
+  'not','but','can','will','been','have','had','were','than','also',
+  'which','when','where','such','case','court','order','held','find',
+  'found','under','upon','into','over','more','does','did','may','must',
+  'shall','only','their','them','they','each','both','some','very','any',
+  'all','one','two','three','because','since','given','while','here',
+]);
+
+function docketCitKeywords(cit) {
+  const src = [cit.parentheticalQuote || '', cit.text || ''].join(' ').toLowerCase();
+
+  // (1) Hardcoded legal topic terms present in citation context → positive signals.
+  const matched = RECAP_LEGAL_TOPICS.filter(t => src.includes(t));
+
+  // (2) Significant raw words from the parenthetical → bonus positive signals.
+  // Avoids the semantic-gap problem when the parenthetical uses different vocabulary
+  // than the hardcoded list (e.g. "status quo" ↔ "provisional relief").
+  const rawWords = (cit.parentheticalQuote || '').toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(w => w.length >= 5 && !RECAP_STOPWORDS.has(w));
+
+  return [...new Set([...matched, ...rawWords])];
+}
+
+// Score a RECAP doc description against citation keywords.
+// Positive: description contains words from the citation context.
+// Negative: description contains distinctive topic words that are ABSENT from the
+//           citation context, suggesting a different proceeding or motion type.
+function scoreDocRelevance(description, keywords) {
+  if (!description) return 0;
+  const desc = description.toLowerCase();
+  const kwSet = new Set(keywords);
+
+  let score = 0;
+
+  // Positive scoring.
+  for (const kw of keywords) {
+    if (desc.includes(kw)) score += 2;
+    for (const w of kw.split(/\s+/)) {
+      if (w.length > 4 && desc.includes(w)) score += 1;
+    }
+  }
+
+  // Negative scoring: topic terms in description that don't appear in citation context.
+  // Only apply for multi-word or unambiguous single terms to avoid over-penalising.
+  for (const topic of RECAP_LEGAL_TOPICS) {
+    if (topic.split(' ').length < 2 && topic.length < 7) continue; // skip short single words
+    if (desc.includes(topic) && !kwSet.has(topic) && !keywords.some(k => k.includes(topic) || topic.includes(k))) {
+      score -= 2;
+    }
+  }
+
+  // For provisional-relief citations, strongly prefer merits orders and
+  // de-prioritize scheduling/shorten-time procedural orders.
+  if (kwSet.has('provisional relief')) {
+    if (/grant(?:ed|ing)?\s+provisional relief/.test(desc) || /provisional relief[^.]{0,40}grant(?:ed|ing)?/.test(desc)) {
+      score += 8;
+    }
+    if (/shorten\s+time|order\s+shortening\s+time|scheduling\s+hearing/.test(desc)) {
+      score -= 8;
+    }
+  }
+
+  return score;
+}
+
+// Lazy opinion text fetcher for docket citations.
+// Tries to find the document closest to what the memo is actually citing,
+// not just the first available substantive RECAP doc.
+// Priority: (1) substantive RECAP docs ranked by relevance to citation,
+//           (2) CL docket-entries API ranked by relevance (requires CL key).
+async function lazyFetchDocketOpinionText(cit, signal) {
+  const recapDocsInfo = cit.result?.recapDocsInfo || [];
+  const toDoc = d => ({ filepath_local: d.filepath, is_available: true, description: d.description });
+  const keywords = docketCitKeywords(cit);
+
+  // Rank substantive RECAP search-result docs by relevance to the citation.
+  const substantive = recapDocsInfo
+    .filter(d => isRecapDocSubstantive(d.description || ''))
+    .sort((a, b) => scoreDocRelevance(b.description, keywords) - scoreDocRelevance(a.description, keywords))
+    .map(toDoc);
+  if (substantive.length) {
+    const t = await fetchRecapOpinionText(substantive, cit.text, signal);
+    if (t) return t;
+  }
+
+  // Fall back to CL docket-entries API — enumerates ALL documents in the docket,
+  // not just what the RECAP search happened to return. Ranked by relevance.
+  if (cit.result?.clId) {
+    try {
+      const t = await fetchDocketOpinionText(cit.result.clId, signal || AbortSignal.timeout(30000), keywords);
+      if (t) return t;
+    } catch (_) {}
+  }
+
   return null;
 }
 
@@ -5099,15 +6824,41 @@ async function recapSearchByCaseName(cit, signal) {
     const rows = data?.results || [];
     if (!rows.length) return null;
 
+    // If the citation embeds a docket number (e.g. "No. 25-11030"), extract it so we
+    // can confirm a RECAP result by docket number match even when the case name has
+    // changed (e.g. Giftcraft → 5009013 Ontario Ltd.).
+    const embeddedDocketMatch = cit.text.match(/\bNo\.\s*(\d{2}\s*[-–—]\s*\d{4,6})/i);
+    const embeddedDocket = embeddedDocketMatch
+      ? embeddedDocketMatch[1].replace(/\s/g, '').replace(/[–—]/g, '-')
+      : null;
+
     // search?type=r uses camelCase: caseName, docket_id, docket_absolute_url, dateFiled
     const scored = rows.map(r => {
       const nameSim = multiFactorNameSimilarity(cit.text, r.caseName || '');
       const dateScore = recapDateProximity(cit.text, r.dateFiled || '');
-      return { r, score: (0.75 * nameSim) + (0.25 * dateScore) };
+      let score = (0.75 * nameSim) + (0.25 * dateScore);
+      const rowDocket = (r.docketNumber || '').replace(/\s/g, '').replace(/[–—]/g, '-');
+      // Docket number match in the citation text is definitive — override name similarity.
+      if (embeddedDocket) {
+        if (rowDocket && rowDocket === embeddedDocket) {
+          score = Math.max(score, 1.0);
+        } else if (rowDocket && rowDocket !== embeddedDocket) {
+          // Strongly penalize explicit docket-number conflicts to prevent
+          // cross-case false positives in name-search fallback.
+          score -= 0.45;
+        }
+      }
+      return { r, score, nameSim };
     }).sort((a, b) => b.score - a.score);
 
     const best = scored[0];
     if (!best || best.score < 0.4) return null;
+
+    // Guardrail: without explicit docket-number confirmation, require a stronger
+    // name match before allowing RECAP name-search fallback to proceed.
+    const bestDocket = (best.r?.docketNumber || '').replace(/\s/g, '').replace(/[–—]/g, '-');
+    const docketMatched = !!(embeddedDocket && bestDocket && bestDocket === embeddedDocket);
+    if (!docketMatched && (best.nameSim || 0) < 0.55) return null;
 
     const row = best.r;
     const clUrl = row.docket_absolute_url ? `https://www.courtlistener.com${row.docket_absolute_url}` : null;
@@ -5120,6 +6871,18 @@ async function recapSearchByCaseName(cit, signal) {
     try {
       opinionText = await fetchRecapOpinionText(row.recap_documents || [], cit.text, signal);
     } catch (_) {}
+
+    // If search payload doesn't include usable RECAP documents, try docket-level
+    // opinion retrieval by docket id to reduce false "uncertain" support outcomes.
+    if (!opinionText && row.docket_id) {
+      try {
+        opinionText = await fetchDocketOpinionText(
+          row.docket_id,
+          signal || AbortSignal.timeout(25000),
+          docketCitKeywords(cit)
+        );
+      } catch (_) {}
+    }
 
     if (opinionText) {
       return {
@@ -5209,6 +6972,21 @@ async function clSearch(cit, signal) {
         scholarUrl: sUrl,
         similarity: sim,
         confidence: Math.round((best?.score || 0) * 100),
+        matchTier: tier,
+      };
+    }
+
+    const citedName = cit.text.replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim() || cit.text;
+    const looksReporterOnlyInRe = /^In\s+re\s+\d{1,4}\s+[A-Z][A-Za-z.'\s]+\s+\d+$/i.test(cit.text.trim());
+    if (looksReporterOnlyInRe) {
+      return {
+        status: 'warning',
+        msg: 'High-risk malformed citation — missing case name before reporter (e.g., "In re 649 B.R. 143"). Verify manually against source document.',
+        clUrl,
+        lexisUrl: wlUrl,
+        scholarUrl: sUrl,
+        confidence: Math.round((best?.score || 0) * 100),
+        similarity: sim,
         matchTier: tier,
       };
     }
@@ -5481,14 +7259,69 @@ async function verifyCitation(cit, opts = {}) {
   if (cit.kind === 'docket') {
     // RECAP/CourtListener docket lookup by docket number (e.g. "1:24-cv-10049").
     // Not all dockets are in RECAP — only those uploaded from PACER by the public.
+    const wlUrl = 'https://1.next.westlaw.com/Search/Results.html?query='
+      + encodeURIComponent(cit.text.slice(0, 120))
+      + '&contentType=ALLCASES&transitionType=Search&contextData=(sc.Search)';
+    const normDocket = s => String(s || '').replace(/\s/g, '').replace(/[–—]/g, '-');
+
+    // Step 1: public RECAP search — no CL key required.
+    // Search by case name + docket number so caption amendments don't prevent a match.
+    // We verify by docket_number exact match, not case name.
+    try {
+      const docketIdx = cit.text.indexOf(cit.docketNumber);
+      const searchCaseName = docketIdx > 0
+        ? cit.text.slice(0, docketIdx).replace(/[,\s]+(?:[Cc]ase\s+)?[Nn]o\.?\s*$/i, '').trim()
+        : '';
+      const q = [searchCaseName, cit.docketNumber].filter(Boolean).join(' ').slice(0, 120);
+      const recapUrl = new URL('https://www.courtlistener.com/api/rest/v4/search/');
+      recapUrl.searchParams.set('q', q);
+      recapUrl.searchParams.set('type', 'r');
+      recapUrl.searchParams.set('page_size', '5');
+      const recapRes = await fetch(recapUrl.toString(), { signal: AbortSignal.timeout(10000) });
+      if (recapRes.ok) {
+        const recapData = await recapRes.json();
+        // Collect all results for this docket number — multiple documents may match.
+        const allMatches = (recapData.results || []).filter(r =>
+          normDocket(r.docketNumber) === normDocket(cit.docketNumber)
+        );
+        const match = allMatches[0];
+        if (match) {
+          const clUrl = match.docket_absolute_url
+            ? `https://www.courtlistener.com${match.docket_absolute_url}`
+            : `https://www.courtlistener.com/docket/${match.docket_id}/`;
+          // Compute recapDocsInfo from metadata (no PDF fetch — deferred to Check Support / Download).
+          const recapDocsList = allMatches.flatMap(r => r.recap_documents || []);
+          const avail = recapDocsList.filter(d => d.is_available && d.filepath_local?.startsWith('recap/'));
+          const subst = avail.filter(d => isRecapDocSubstantive(d.description || ''));
+          const fetched = (subst.length ? subst : avail).slice(0, 5);
+          const recapPdfUrl = fetched[0] ? `https://storage.courtlistener.com/${fetched[0].filepath_local}` : null;
+          const recapDocsInfo = fetched.length ? fetched.map(d => {
+            const full = d.description || '';
+            const short = full.split(/[(\[]/)[0].trim();
+            return { description: (short.length > 4 && short.length <= 60) ? short : full.slice(0, 55) + (full.length > 55 ? '…' : ''), filepath: d.filepath_local };
+          }) : null;
+
+          // PDFs are fetched lazily when Check Support / Download is triggered.
+          return {
+            status: 'verified',
+            msg: `Docket confirmed in RECAP · ${match.caseName}`,
+            clUrl,
+            clId: match.docket_id,
+            lexisUrl: wlUrl,
+            confidence: 90,
+            matchTier: 'exact_docket_number',
+            ...(recapDocsInfo ? { recapPdfUrl, recapDocsInfo } : {}),
+          };
+        }
+      }
+    } catch (_) { /* fall through to dockets API */ }
+
+    // Step 2: dockets API (requires CL key) — broader search across all courts.
     try {
       const data = await fetchCourtListener('/api/rest/v4/dockets/', {
         params: { docket_number: cit.docketNumber },
         signal: AbortSignal.timeout(15000),
       });
-      const wlUrl = 'https://1.next.westlaw.com/Search/Results.html?query='
-        + encodeURIComponent(cit.text.slice(0, 120))
-        + '&contentType=ALLCASES&transitionType=Search&contextData=(sc.Search)';
       if (data.count > 0 && data.results?.length > 0) {
         const docket = data.results[0];
         const clUrl = `https://www.courtlistener.com${docket.absolute_url}`;
@@ -5508,7 +7341,6 @@ async function verifyCitation(cit, opts = {}) {
           matchTier: tier,
         };
       }
-      // count=0 — docket not uploaded to RECAP (common for less-publicized cases)
       return {
         status: 'warning',
         msg: 'Docket not in RECAP — verify via PACER or court website',
@@ -5676,6 +7508,12 @@ async function verifyCitation(cit, opts = {}) {
         msg: `Id./supra — volume mismatch: ${cit.volMismatchDetail}. Short-form volume does not match resolved base citation — check reporter, volume, and year.`,
       };
     }
+    if (cit.resolvedFrom && /^In\s+re\s+\d{1,4}\s+[A-Z]/i.test(cit.resolvedFrom)) {
+      return {
+        status: 'warning',
+        msg: 'Id./supra antecedent appears malformed (missing case name before reporter). Verify the full base citation manually.',
+      };
+    }
     return { status: 'info', msg: 'Id./supra — inherits from preceding citation' };
   }
 
@@ -5836,14 +7674,14 @@ function app() {
                    : p === 'kimi'      ? !!s.kimiKey
                    : p === 'local'     ? true  // Ollama needs no key
                    : false;
-      return hasKey && this.citations.some(c => c.kind === 'case' && c.result?.status === 'verified');
+      return hasKey && this.citations.some(c => this.isSupportCheckEligible(c));
     },
 
     // ── Computed counts ───────────────────────────────────────────────────────
     get totalCount()    { return this.citations.length; },
     get selectedCount() { return this.citations.filter(c => c.selected).length; },
     get selectedVerifiedCaseCount() {
-      return this.filteredCitations.filter(c => c.selected && c.kind === 'case' && c.result?.status === 'verified').length;
+      return this.filteredCitations.filter(c => c.selected && (c.kind === 'case' || (c.kind === 'docket' && (c.opinionText || c.result?.recapDocsInfo?.length))) && c.result?.status === 'verified').length;
     },
     get doneCount()     { return this.citations.filter(c => c.result).length; },
     get verifiedCount() { return this.citations.filter(c => c.result?.status === 'verified').length; },
@@ -5888,12 +7726,14 @@ function app() {
       const types = {};
       for (const c of this.citations) types[c.kind] = (types[c.kind] || 0) + 1;
       const parts = [];
-      if (types.case)    parts.push(`${types.case} case${types.case > 1 ? 's' : ''}`);
-      if (types.statute) parts.push(`${types.statute} statute${types.statute > 1 ? 's' : ''}`);
-      if (types.journal) parts.push(`${types.journal} journal${types.journal > 1 ? 's' : ''}`);
-      if (types.url)     parts.push(`${types.url} URL${types.url > 1 ? 's' : ''}`);
-      if (types.id)      parts.push(`${types.id} id./supra`);
-      if (types.unknown) parts.push(`${types.unknown} other`);
+      if (types.case)      parts.push(`${types.case} case${types.case > 1 ? 's' : ''}`);
+      if (types.statute)   parts.push(`${types.statute} statute${types.statute > 1 ? 's' : ''}`);
+      if (types.docket)    parts.push(`${types.docket} docket${types.docket > 1 ? 's' : ''}`);
+      if (types.journal)   parts.push(`${types.journal} journal${types.journal > 1 ? 's' : ''}`);
+      if (types.secondary) parts.push(`${types.secondary} secondary`);
+      if (types.url)       parts.push(`${types.url} URL${types.url > 1 ? 's' : ''}`);
+      if (types.id)        parts.push(`${types.id} id./supra`);
+      if (types.unknown)   parts.push(`${types.unknown} other`);
       return this.citations.length + ' citations found'
         + (parts.length ? ' — ' + parts.join(', ') : '');
     },
@@ -5908,6 +7748,30 @@ function app() {
 
     docCount(doc, status) {
       return (doc?.citations || []).filter(c => c.result?.status === status).length;
+    },
+
+    hasSupportSource(cit) {
+      if (!cit) return false;
+      const msg = String(cit?.result?.msg || '').toLowerCase();
+
+      // Conservative gate: if we explicitly know there is no underlying opinion
+      // text source yet, do not run AI support checks for this citation.
+      if (!cit.opinionText && /no opinion text|docket index only/.test(msg)) return false;
+
+      // Docket citations should require an opinion-bearing source (cached text or
+      // RECAP docs). A bare docket ID alone is not enough for support analysis.
+      if (cit.kind === 'docket') {
+        return !!(cit.opinionText || cit?.result?.recapDocsInfo?.length);
+      }
+
+      // Case citations can use CL opinion cluster fetch by clId when needed.
+      return !!(cit.opinionText || cit?.result?.clId || cit?.result?.recapDocsInfo?.length);
+    },
+
+    isSupportCheckEligible(cit) {
+      const isCaseLike = cit?.kind === 'case' || cit?.kind === 'docket';
+      const isAllowedStatus = cit?.result?.status === 'verified' || cit?.result?.status === 'warning';
+      return isCaseLike && isAllowedStatus && this.hasSupportSource(cit);
     },
 
     docDoneCount(doc) {
@@ -5946,12 +7810,14 @@ function app() {
       const types = {};
       for (const c of citations) types[c.kind] = (types[c.kind] || 0) + 1;
       const parts = [];
-      if (types.case) parts.push(`${types.case} case${types.case > 1 ? 's' : ''}`);
-      if (types.statute) parts.push(`${types.statute} statute${types.statute > 1 ? 's' : ''}`);
-      if (types.journal) parts.push(`${types.journal} journal${types.journal > 1 ? 's' : ''}`);
-      if (types.url) parts.push(`${types.url} URL${types.url > 1 ? 's' : ''}`);
-      if (types.id) parts.push(`${types.id} id./supra`);
-      if (types.unknown) parts.push(`${types.unknown} other`);
+      if (types.case)      parts.push(`${types.case} case${types.case > 1 ? 's' : ''}`);
+      if (types.statute)   parts.push(`${types.statute} statute${types.statute > 1 ? 's' : ''}`);
+      if (types.docket)    parts.push(`${types.docket} docket${types.docket > 1 ? 's' : ''}`);
+      if (types.journal)   parts.push(`${types.journal} journal${types.journal > 1 ? 's' : ''}`);
+      if (types.secondary) parts.push(`${types.secondary} secondary`);
+      if (types.url)       parts.push(`${types.url} URL${types.url > 1 ? 's' : ''}`);
+      if (types.id)        parts.push(`${types.id} id./supra`);
+      if (types.unknown)   parts.push(`${types.unknown} other`);
       return citations.length + ' citations found' + (parts.length ? ' — ' + parts.join(', ') : '');
     },
 
@@ -6090,7 +7956,7 @@ function app() {
         showError(e.message);
         return;
       }
-      this.setActiveDocument(doc.id);
+      this.activeDocumentId = doc.id;
       await this._runVerificationForDoc(doc, doc.citations, 'all');
     },
 
@@ -6155,6 +8021,8 @@ function app() {
         return;
       }
       cit.result = null;
+      cit.opinionText = null;
+      cit.analysis = null;
       cit.checking = true;
       cit.result = await verifyCitation(cit);
       cit.checking = false;
@@ -6166,6 +8034,10 @@ function app() {
     async analyzeSingle(cit) {
       if (cit.analysis?.status === 'analyzing') return;
       if (!this.canAnalyze) { showToast('Add an AI key in ⚙ Settings first'); return; }
+      if (!this.isSupportCheckEligible(cit)) {
+        showToast('This citation is not ready for support check yet');
+        return;
+      }
       const provider = getAISettings().provider || 'anthropic';
       trackAnalyticsEvent('ai_support_start', {
         mode: 'single',
@@ -6178,10 +8050,19 @@ function app() {
       });
       cit.analysis = { status: 'analyzing' };
       try {
-        if (!cit.opinionText && cit.result?.clId) {
+        if (!cit.opinionText && cit.kind === 'case' && cit.result?.clId) {
           const payload = await this._fetchOpinionText(cit.result.clId);
           cit.opinionText = payload?.text || '';
           cit.opinionType = payload?.sourceType || null;
+        }
+        if (!cit.opinionText && cit.kind === 'docket') {
+          cit.opinionText = await lazyFetchDocketOpinionText(cit, AbortSignal.timeout(35000)) || '';
+        }
+        if (!cit.opinionText && cit.kind === 'docket') {
+          cit.analysis = { status: 'done', mode: 'ai', supported: null, bestPassage: null, memoContext: null,
+            pinciteCheck: await evaluatePinciteCheck(cit, '', AbortSignal.timeout(25000)),
+            summary: 'Document not yet in RECAP — access via PACER required to verify this citation.' };
+          return;
         }
         cit.analysis = await this._analyzeCitation(cit);
         trackAnalyticsEvent('ai_support_complete', {
@@ -6217,7 +8098,7 @@ function app() {
       if (this.aiAnalyzing) return;
       if (!this.canAnalyze) { showToast('Add an AI API key in ⚙ Settings first'); return; }
       const provider = getAISettings().provider || 'anthropic';
-      const toAnalyze = this.citations.filter(c => c.kind === 'case' && c.result?.status === 'verified');
+      const toAnalyze = this.citations.filter(c => this.isSupportCheckEligible(c));
       trackAnalyticsEvent('ai_support_start', {
         mode: 'all',
         provider,
@@ -6227,8 +8108,8 @@ function app() {
       });
       this.aiAnalyzing = true;
       try {
-        // Fetch opinions for verified cases that have a clId but no cached opinion text
-        const needOpinion = this.citations.filter(c => c.kind === 'case' && c.result?.status === 'verified' && c.result?.clId && !c.opinionText);
+        // Fetch opinions for eligible case citations that have a clId but no cached opinion text.
+        const needOpinion = toAnalyze.filter(c => c.kind === 'case' && c.result?.clId && !c.opinionText);
         for (let i = 0; i < needOpinion.length; i += 2) {
           await Promise.all(needOpinion.slice(i, i + 2).map(async cit => {
               const payload = await this._fetchOpinionText(cit.result.clId);
@@ -6236,9 +8117,21 @@ function app() {
               cit.opinionType = payload?.sourceType || null;
           }));
         }
-        // Analyze only verified case citations
+        // Lazy-fetch opinion text for dockets that don't have it yet
+        const needRecap = toAnalyze.filter(c => c.kind === 'docket' && !c.opinionText);
+        for (const cit of needRecap) {
+          cit.opinionText = await lazyFetchDocketOpinionText(cit, AbortSignal.timeout(35000)) || '';
+        }
+        // Analyze eligible citations (verified + source-backed warnings).
         for (const cit of toAnalyze) cit.analysis = { status: 'analyzing' };
         for (const cit of toAnalyze) {
+          if (cit.kind === 'docket' && !cit.opinionText) {
+            cit.analysis = { status: 'done', mode: 'ai', supported: null, bestPassage: null, memoContext: null,
+              pinciteCheck: await evaluatePinciteCheck(cit, '', AbortSignal.timeout(25000)),
+              summary: 'Document not yet in RECAP — access via PACER required to verify this citation.' };
+            await this.yieldToUI();
+            continue;
+          }
           cit.analysis = await this._analyzeCitation(cit);
           await this.yieldToUI();
         }
@@ -6359,23 +8252,25 @@ function app() {
         // Use full selected opinion text for legal reasoning fidelity.
         const opinionSnippet = cleanOpinionText || null;
 
-        // ── Client-side parenthetical quote verification ──────────────────────
-        // Check whether the quoted text the attorney placed in the citation parenthetical
-        // (extracted in classifyCitations) appears verbatim in the actual opinion text.
-        // This is a definitive client-side check — no AI involved. If the quote is
-        // present, it's confirmed. If absent and opinion text is available, it's an error.
+        // Priority: citation-attached explanatory parenthetical quote first, then nearby pre-citation quote.
+        const quotedProposition = String(cit.parentheticalQuote || extractQuotedPropositionNearCitation(this.sourceText, cit) || '').trim() || null;
+
+        // ── Client-side quoted-proposition verification ───────────────────────
+        // Check whether the quoted text attributed to the citation appears verbatim
+        // in the actual opinion text. The quote may be either a trailing parenthetical
+        // quote or a quoted proposition immediately before the citation.
         let parentheticalCheck = null; // null = no quote to check
-        if (cit.parentheticalQuote && cleanOpinionText) {
-          const found = verifyVerbatimPassage(cit.parentheticalQuote, cleanOpinionText);
+        if (quotedProposition && cleanOpinionText) {
+          const found = verifyVerbatimPassage(quotedProposition, cleanOpinionText);
           parentheticalCheck = {
-            quote: cit.parentheticalQuote,
+            quote: quotedProposition,
             verified: !!found,
             // Not found is only a definitive error when we have the full opinion text.
             // When opinion is unavailable the check is simply skipped.
           };
-        } else if (cit.parentheticalQuote && !cleanOpinionText) {
+        } else if (quotedProposition && !cleanOpinionText) {
           // Quote exists but we can't verify — mark as pending.
-          parentheticalCheck = { quote: cit.parentheticalQuote, verified: null };
+          parentheticalCheck = { quote: quotedProposition, verified: null };
         }
 
         const prompt = [
@@ -6400,8 +8295,8 @@ function app() {
             ? `STEP 4 — Copy the single most relevant sentence or short passage from the opinion text above that best supports or refutes the memo's claim. Copy it CHARACTER-FOR-CHARACTER with no changes, no paraphrasing, no ellipsis substitution. If no passage is relevant, use null.`
             : `STEP 4 — keyPassage: null (no opinion text provided)`,
           ``,
-          cit.parentheticalQuote && opinionSnippet
-            ? `STEP 4.5 — The citation in the memo includes this parenthetical quotation attributed to the opinion:\n"${cit.parentheticalQuote}"\nDoes this quoted text appear verbatim in the opinion text above? If the words or phrasing differ materially, add a "parenthetical_concern" key to your JSON output explaining the discrepancy. If it appears correctly, set "parenthetical_concern": null.`
+          quotedProposition && opinionSnippet
+            ? `STEP 4.5 — The citation in the memo includes this quoted text attributed to the opinion:\n"${quotedProposition}"\nDoes this quoted text appear verbatim in the opinion text above? If the words or phrasing differ materially, add a "parenthetical_concern" key to your JSON output explaining the discrepancy. If it appears correctly, set "parenthetical_concern": null.`
             : '',
           `STEP 5 — Output JSON only (no markdown, no explanation outside the JSON):`,
           `{"supported":"yes|partial|no|uncertain","memo_issue":"what the memo claims this case stands for","case_holding":"what the case actually holds","domain_match":true|false,"summary":"1-2 sentence verdict explaining your reasoning","concerns":"cite-structural issues only — e.g. wrong reporter, citing a dissent as majority, non-binding court — or null. Do NOT speculate about opinion authorship or majority/dissent attribution unless explicitly stated in the provided text.","keyPassage":"verbatim copied sentence from the opinion above, or null","parenthetical_concern":"description of parenthetical quote discrepancy, or null"}`,
@@ -6440,16 +8335,40 @@ function app() {
               ? 'no' : (p.supported || 'uncertain');
             // Verify keyPassage is verbatim — if AI hallucinated it, discard silently
             let verifiedPassage = verifyVerbatimPassage(p.keyPassage, cleanOpinionText);
+            let evidenceFromFallback = false;
             if (!verifiedPassage && bestPassage) {
               // Fall back to semantic best-passage if AI quote fails verification.
               verifiedPassage = verifyVerbatimPassage(bestPassage.slice(0, 700), cleanOpinionText);
             }
+            if (!verifiedPassage && context && cleanOpinionText) {
+              // Try to find the proposition from memo context directly in the opinion text.
+              const ctxPhrase = findContextPhraseInOpinion(context, cleanOpinionText);
+              if (ctxPhrase) verifiedPassage = verifyVerbatimPassage(ctxPhrase, cleanOpinionText);
+            }
             if (!verifiedPassage && cleanOpinionText) {
               // Final fallback: show a deterministic excerpt instead of false "unavailable".
               verifiedPassage = fallbackOpinionPassage(cleanOpinionText, 500);
+              evidenceFromFallback = !!verifiedPassage;
             }
             if (verifiedPassage && isOpinionBoilerplatePassage(verifiedPassage)) {
               verifiedPassage = null;
+              evidenceFromFallback = false;
+            }
+            const strictEvidence = !!(quotedProposition || (verifiedPassage && !evidenceFromFallback));
+            const preferredEvidenceText = quotedProposition || verifiedPassage || null;
+            let pinciteCheck = await evaluatePinciteCheck(
+              cit,
+              cleanOpinionText,
+              AbortSignal.timeout(25000),
+              [quotedProposition, verifiedPassage],
+              { strictEvidence, preferredEvidenceText, evidenceVerifiedInOpinion: parentheticalCheck?.verified === true }
+            );
+            if (quotedProposition && parentheticalCheck?.verified === false && pinciteCheck?.status === 'verified') {
+              pinciteCheck = {
+                ...pinciteCheck,
+                status: 'plausible',
+                note: `Quote not found verbatim in the opinion text. ${pinciteCheck.note || ''}`.trim(),
+              };
             }
             const passageOffset = verifiedPassage ? cleanOpinionText.indexOf(verifiedPassage) : -1;
             return {
@@ -6465,9 +8384,41 @@ function app() {
               sourceType: sanitizeOpinionSourceType(cit.opinionType) || null,
               passageOffset: passageOffset >= 0 ? passageOffset : null,
               parentheticalCheck,
+              pinciteCheck,
               parentheticalConcern: p.parenthetical_concern || null,
             };
           }
+        }
+        let fallbackPassage = null;
+        let fallbackPassageFromDeterministicExcerpt = false;
+        if (bestPassage) {
+          fallbackPassage = verifyVerbatimPassage(bestPassage.slice(0, 700), cleanOpinionText);
+        }
+        if (!fallbackPassage) {
+          if (context && cleanOpinionText) {
+            const ctxPhrase = findContextPhraseInOpinion(context, cleanOpinionText);
+            if (ctxPhrase) fallbackPassage = verifyVerbatimPassage(ctxPhrase, cleanOpinionText);
+          }
+        }
+        if (!fallbackPassage) {
+          fallbackPassage = fallbackOpinionPassage(cleanOpinionText, 500);
+          fallbackPassageFromDeterministicExcerpt = !!fallbackPassage;
+        }
+        const strictEvidence = !!(quotedProposition || (fallbackPassage && !fallbackPassageFromDeterministicExcerpt));
+        const preferredEvidenceText = quotedProposition || fallbackPassage || null;
+        let pinciteCheck = await evaluatePinciteCheck(
+          cit,
+          cleanOpinionText,
+          AbortSignal.timeout(25000),
+          [quotedProposition, fallbackPassage],
+          { strictEvidence, preferredEvidenceText, evidenceVerifiedInOpinion: parentheticalCheck?.verified === true }
+        );
+        if (quotedProposition && parentheticalCheck?.verified === false && pinciteCheck?.status === 'verified') {
+          pinciteCheck = {
+            ...pinciteCheck,
+            status: 'plausible',
+            note: `Quote not found verbatim in the opinion text. ${pinciteCheck.note || ''}`.trim(),
+          };
         }
         // No parseable JSON — surface raw response as summary so user sees what happened.
         return {
@@ -6476,12 +8427,11 @@ function app() {
           supported: 'uncertain',
           summary: text.replace(/[\n\r]+/g, ' ').slice(0, 400),
           memoContext: context,
-          bestPassage: bestPassage
-            ? verifyVerbatimPassage(bestPassage.slice(0, 700), cleanOpinionText)
-            : fallbackOpinionPassage(cleanOpinionText, 500),
+          bestPassage: fallbackPassage,
           sourceType: sanitizeOpinionSourceType(cit.opinionType) || null,
           passageOffset: null,
           parentheticalCheck,
+          pinciteCheck,
           parentheticalConcern: null,
         };
       } catch (e) {
@@ -6542,6 +8492,25 @@ function app() {
 
     async _resolveOpinionDownloadAssets(cit) {
       if (cit._opinionAssetsResolved && cit._opinionAssets) return cit._opinionAssets;
+
+      // Docket citations: opinion text came from RECAP PDFs, not CL opinion clusters.
+      // Use opinionText directly and recapPdfUrl for the PDF download.
+      if (cit.kind === 'docket') {
+        if (!cit.opinionText) {
+          cit.opinionText = await lazyFetchDocketOpinionText(cit, AbortSignal.timeout(35000)) || '';
+        }
+        const docketName = (cit.text || 'opinion').replace(/,\s*Case\s+No\..*$/i, '').trim() || 'opinion';
+        const clUrl = cit.result?.clUrl || null;
+        const pdfUrl = cit.result?.recapPdfUrl || null;
+        const plain = stripOpinionBoilerplate(cit.opinionText || '');
+        const hdr = [docketName, clUrl ? `Source: ${clUrl}` : '', '-'.repeat(60)].filter(Boolean).join('\n') + '\n\n';
+        const htmlAsset = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escHtml(docketName)}</title></head><body><h1>${escHtml(docketName)}</h1>${clUrl ? `<p><a href="${escHtml(clUrl)}" target="_blank">CourtListener ↗</a></p>` : ''}<hr/><pre>${escHtml(plain)}</pre></body></html>`;
+        const asset = { caseName: docketName, text: plain ? (hdr + plain) : null, html: plain ? htmlAsset : null, pdfUrl, sourceUrl: clUrl };
+        cit._opinionAssets = asset;
+        cit._opinionAssetsResolved = true;
+        return asset;
+      }
+
       const clId = cit.result?.clId;
       const clUrl = cit.result?.clUrl || (clId ? `https://www.courtlistener.com/opinion/${clId}/` : null);
       const caseName = (cit.text || '').replace(/,?\s*\d+\s+[A-Z].*$/s, '').trim() || 'opinion';
@@ -6987,7 +8956,7 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
 
         const links = [
           c.result?.clUrl     ? `<a href="${c.result.clUrl}" target="_blank">CourtListener ↗</a>` : '',
-          c.result?.clId      ? `<a href="https://www.courtlistener.com/opinion/${c.result.clId}/" target="_blank">View opinion ↗</a>` : '',
+          c.kind === 'case' && c.result?.clId ? `<a href="https://www.courtlistener.com/opinion/${c.result.clId}/" target="_blank">View opinion ↗</a>` : '',
           c.result?.liiUrl    ? `<a href="${c.result.liiUrl}" target="_blank">Cornell LII ↗</a>` : '',
           c.result?.lexisUrl  ? `<a href="${c.result.lexisUrl}" target="_blank">Westlaw ↗</a>` : '',
           c.result?.scholarUrl? `<a href="${c.result.scholarUrl}" target="_blank">Google Scholar ↗</a>` : '',
@@ -7007,6 +8976,8 @@ th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b6560;bo
             </div>
             ${a.summary ? `<div style="color:#374151;margin-bottom:4px">${escHtml(a.summary)}</div>` : ''}
             ${a.concerns ? `<div style="color:#b45309;margin-bottom:4px">⚠ ${escHtml(a.concerns)}</div>` : ''}
+            ${a.pinciteCheck ? `<div style="color:${a.pinciteCheck.status === 'verified' ? '#15803d' : (a.pinciteCheck.status === 'plausible' ? '#6b6560' : '#92400e')};margin-bottom:4px">${a.pinciteCheck.status === 'verified' ? '✓' : (a.pinciteCheck.status === 'plausible' ? 'ℹ' : '⚠')} Pincite (${escHtml(a.pinciteCheck.status)})${a.pinciteCheck.raw ? ' — ' + escHtml(a.pinciteCheck.raw) : ''}: ${escHtml(a.pinciteCheck.note || '')}${a.pinciteCheck.pdfPathAvailable ? ' (PDF path available)' : ''}</div>` : ''}
+            ${a.pinciteCheck?.similarCandidates?.length ? `<div style="margin:2px 0 6px 0;padding-left:10px;border-left:2px solid #d6d3d1">${a.pinciteCheck.similarCandidates.map(c => `<div style="font-size:11px;line-height:1.4;color:#57534e;margin:2px 0">~${escHtml(c.similarity || 0)}% match: ${escHtml(c.text || '')}</div>`).join('')}</div>` : ''}
             ${a.memoContext || a.bestPassage ? `
             <table style="width:100%;border-collapse:collapse;margin-top:6px">
               <tr>

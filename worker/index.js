@@ -137,19 +137,54 @@ async function proxyGovInfo(request, env) {
 }
 
 
-// RECAP PDF proxy — fetches a document from storage.courtlistener.com so the
-// browser can use pdf.js on it without hitting CORS restrictions.
-// Only accepts paths starting with "recap/" to prevent open-proxy abuse.
+// CourtListener storage PDF proxy — fetches documents from
+// storage.courtlistener.com so the browser can use pdf.js without CORS issues.
+// Accepts only scoped storage paths to prevent open-proxy abuse.
 async function proxyRecapPdf(request, env) {
-  const { filepath } = await request.json();
-  if (!filepath || typeof filepath !== 'string' || !filepath.startsWith('recap/')) {
-    return err('Invalid recap filepath', 400, request, env);
+  const { filepath, url } = await request.json();
+  let pdfUrl = null;
+
+  if (url) {
+    try {
+      const u = new URL(String(url));
+      const host = u.hostname.toLowerCase();
+      const path = u.pathname || '/';
+      const isStorage = host === 'storage.courtlistener.com'
+        && /\/(?:recap|pdf|harvard_pdf)\/.+\.pdf$/i.test(path);
+      const isOpinionPdf = /(^|\.)courtlistener\.com$/.test(host)
+        && /^\/opinion\/\d+\/[^/]*\/pdf\/?$/i.test(path);
+      if (!isStorage && !isOpinionPdf) {
+        return err('Invalid CourtListener PDF URL', 400, request, env);
+      }
+      pdfUrl = u.toString();
+    } catch (_) {
+      return err('Invalid URL format', 400, request, env);
+    }
+  } else {
+    const safePath = String(filepath || '').trim().replace(/^\/+/, '').replace(/\?.*$/, '');
+    const allowedPath = safePath.startsWith('recap/')
+      || safePath.startsWith('pdf/')
+      || safePath.startsWith('harvard_pdf/')
+      || /^\d{4}\/\d{2}\/\d{2}\/.*\.pdf$/i.test(safePath);
+    if (!safePath || !allowedPath) {
+      return err('Invalid CourtListener storage filepath', 400, request, env);
+    }
+    const normalizedPath = /^\d{4}\/\d{2}\/\d{2}\/.*\.pdf$/i.test(safePath)
+      ? `pdf/${safePath}`
+      : safePath;
+    pdfUrl = `https://storage.courtlistener.com/${normalizedPath}`;
   }
-  const pdfUrl = `https://storage.courtlistener.com/${filepath}`;
+
   try {
     const res = await fetch(pdfUrl, { signal: AbortSignal.timeout(25000) });
     if (!res.ok) return err(`PDF not available (${res.status})`, res.status, request, env);
+    const ct = String(res.headers.get('Content-Type') || '').toLowerCase();
     const pdf = await res.arrayBuffer();
+    const head = String.fromCharCode(...new Uint8Array(pdf.slice(0, 5)));
+    const looksPdf = ct.includes('application/pdf') || head === '%PDF-';
+    if (!looksPdf) {
+      return err(`Upstream did not return a PDF (${ct || 'unknown content-type'})`, 415, request, env);
+    }
     return new Response(pdf, {
       status: 200,
       headers: {
@@ -160,6 +195,50 @@ async function proxyRecapPdf(request, env) {
     });
   } catch (e) {
     return err(`PDF fetch failed: ${e.message}`, 502, request, env);
+  }
+}
+
+
+// CourtListener API proxy — used as a CORS-safe fallback for endpoints
+// that may block browser-origin requests (notably /opinions/ on some origins).
+// Accepts endpoint + params + optional postBody and forwards Token auth.
+async function proxyCourtListener(request, env) {
+  const { endpoint, params, postBody, key } = await request.json();
+  if (!endpoint || typeof endpoint !== 'string' || !endpoint.startsWith('/api/rest/v4/')) {
+    return err('Invalid CourtListener endpoint', 400, request, env);
+  }
+
+  const url = new URL(`https://www.courtlistener.com${endpoint}`);
+  if (params && typeof params === 'object') {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') {
+        url.searchParams.set(k, String(v));
+      }
+    }
+  }
+
+  const init = {
+    method: postBody ? 'POST' : 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'Authorization': `Token ${String(key).trim()}` } : {}),
+    },
+    signal: AbortSignal.timeout(25000),
+  };
+  if (postBody) init.body = JSON.stringify(postBody);
+
+  try {
+    const res = await fetch(url.toString(), init);
+    const bodyText = await res.text();
+    return new Response(bodyText, {
+      status: res.status,
+      headers: {
+        ...corsHeaders(request, env),
+        'Content-Type': res.headers.get('Content-Type') || 'application/json',
+      },
+    });
+  } catch (e) {
+    return err(`CourtListener proxy failed: ${e.message}`, 502, request, env);
   }
 }
 
@@ -208,6 +287,7 @@ export default {
         '/api/proxy/govinfo': { bucket: 'govinfo', limit: 180, window: 60 },
         '/api/proxy/url': { bucket: 'url', limit: 240, window: 60 },
         '/api/proxy/recap-pdf': { bucket: 'recap-pdf', limit: 30, window: 60 },
+        '/api/proxy/courtlistener': { bucket: 'courtlistener', limit: 180, window: 60 },
       };
 
       const conf = limitByPath[path] || { bucket: 'proxy', limit: 120, window: 60 };
@@ -222,6 +302,7 @@ export default {
       if (path === '/api/proxy/url')            return proxyURLCheck(request, env);
       if (path === '/api/proxy/govinfo')        return proxyGovInfo(request, env);
       if (path === '/api/proxy/recap-pdf')      return proxyRecapPdf(request, env);
+      if (path === '/api/proxy/courtlistener')  return proxyCourtListener(request, env);
     } catch (e) {
       return err(`Internal error: ${e.message}`, 500, request, env);
     }

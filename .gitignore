@@ -11,6 +11,7 @@
 
 # Wrangler local state
 .wrangler/
+.local-dev/
 
 # Terraform
 infra/terraform/.terraform/
